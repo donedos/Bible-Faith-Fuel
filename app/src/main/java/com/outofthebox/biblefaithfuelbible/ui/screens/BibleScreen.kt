@@ -84,9 +84,10 @@ fun BibleScreen(
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxHeight()
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         // Top Section: Header & Menu Items
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
