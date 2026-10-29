@@ -280,12 +280,14 @@ fun BibleScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    IconButton(onClick = { viewModel.cycleFontSize() }) {
-                                        Image(
-                                            painter = painterResource(id = R.drawable.ic_fontsize),
-                                            contentDescription = "Font Size",
-                                            modifier = Modifier.size(38.dp)
-                                        )
+                                    if (uiState.selectedDrawerTab == "reader" && uiState.selectedBook != null && uiState.selectedChapter != null && !uiState.isPickingVerse) {
+                                        IconButton(onClick = { viewModel.cycleFontSize() }) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.ic_fontsize),
+                                                contentDescription = "Font Size",
+                                                modifier = Modifier.size(38.dp)
+                                            )
+                                        }
                                     }
                                     IconButton(onClick = { showSearchField = !showSearchField }) {
                                         Image(
