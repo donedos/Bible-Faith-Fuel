@@ -1,5 +1,6 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.outofthebox.biblefaithfuelbible.R
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleViewModel
 import kotlinx.coroutines.launch
 
@@ -281,7 +284,11 @@ fun BibleScreen(
                                         Text("AA", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                                     }
                                     IconButton(onClick = { showSearchField = !showSearchField }) {
-                                        Text("🔍", style = MaterialTheme.typography.titleMedium)
+                                        Image(
+                                            painter = painterResource(id = R.drawable.ic_search),
+                                            contentDescription = "Search",
+                                            modifier = Modifier.size(24.dp)
+                                        )
                                     }
                                 }
                             }

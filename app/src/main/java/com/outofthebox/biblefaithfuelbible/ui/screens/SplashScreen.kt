@@ -54,7 +54,7 @@ fun SplashScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.faithfuel),
+                painter = painterResource(id = R.drawable.faithfuel2),
                 contentDescription = "Bible Faith Fuel Logo",
                 modifier = Modifier
                     .size(240.dp)
