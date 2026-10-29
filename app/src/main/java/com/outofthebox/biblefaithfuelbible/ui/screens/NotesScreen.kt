@@ -1,6 +1,6 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -25,6 +26,7 @@ fun NotesScreen(
     val uiState by viewModel.uiState.collectAsState()
     var filterQuery by remember { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<NoteRecord?>(null) }
+    var selectedOptionsNote by remember { mutableStateOf<NoteRecord?>(null) }
 
     val filteredNotes = remember(uiState.notes, filterQuery) {
         if (filterQuery.isBlank()) {
@@ -125,11 +127,8 @@ fun NotesScreen(
                         onReadVerse = { ref ->
                             viewModel.navigateToVerse(ref)
                         },
-                        onEdit = { nt ->
-                            editingNote = nt
-                        },
-                        onDelete = { noteId ->
-                            viewModel.deleteNote(noteId)
+                        onLongPress = { nt ->
+                            selectedOptionsNote = nt
                         }
                     )
                 }
@@ -137,7 +136,74 @@ fun NotesScreen(
         }
     }
 
-    // Edit Note Dialog
+    // Long-Press Options Dialog for Notes (Edit / Delete)
+    if (selectedOptionsNote != null) {
+        val targetNt = selectedOptionsNote!!
+
+        Dialog(onDismissRequest = { selectedOptionsNote = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "📝 Note Options (${targetNt.reference})",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = targetNt.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider()
+
+                    Button(
+                        onClick = {
+                            val nt = targetNt
+                            selectedOptionsNote = null
+                            editingNote = nt
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("✏️ Edit Note")
+                    }
+
+                    Button(
+                        onClick = {
+                            val noteId = targetNt.id
+                            selectedOptionsNote = null
+                            viewModel.deleteNote(noteId)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🗑️ Delete Note")
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { selectedOptionsNote = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Edit Note Content Dialog
     if (editingNote != null) {
         val targetNote = editingNote!!
         var editContentInput by remember { mutableStateOf(targetNote.content) }
@@ -199,39 +265,29 @@ fun NotesScreen(
 fun NoteCard(
     note: NoteRecord,
     onReadVerse: (String) -> Unit,
-    onEdit: (NoteRecord) -> Unit,
-    onDelete: (Long) -> Unit
+    onLongPress: (NoteRecord) -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onReadVerse(note.reference) },
+            .pointerInput(note.id) {
+                detectTapGestures(
+                    onTap = { onReadVerse(note.reference) },
+                    onLongPress = { onLongPress(note) }
+                )
+            },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = note.reference,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onEdit(note) }) {
-                        Text("✏️")
-                    }
-                    IconButton(onClick = { onDelete(note.id) }) {
-                        Text("🗑️")
-                    }
-                }
-            }
+            Text(
+                text = note.reference,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleMedium
+            )
 
             Text(
                 text = note.content,

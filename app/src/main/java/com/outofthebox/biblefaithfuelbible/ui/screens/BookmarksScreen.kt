@@ -2,6 +2,7 @@ package com.outofthebox.biblefaithfuelbible.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,8 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.outofthebox.biblefaithfuelbible.data.local.BookmarkRecord
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleViewModel
 
@@ -26,6 +29,7 @@ fun BookmarksScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var filterQuery by remember { mutableStateOf("") }
+    var selectedOptionsBookmark by remember { mutableStateOf<BookmarkRecord?>(null) }
 
     val filteredBookmarks = remember(uiState.bookmarks, filterQuery) {
         if (filterQuery.isBlank()) {
@@ -127,9 +131,77 @@ fun BookmarksScreen(
                         onReadVerses = { ref ->
                             viewModel.navigateToVerse(ref)
                         },
-                        onRename = { bm -> viewModel.openEditingBookmarkDialog(bm) },
-                        onDelete = { refKey -> viewModel.deleteBookmark(refKey) }
+                        onLongPress = { bm ->
+                            selectedOptionsBookmark = bm
+                        }
                     )
+                }
+            }
+        }
+    }
+
+    // Long-Press Options Dialog for Bookmarks (Rename / Delete)
+    if (selectedOptionsBookmark != null) {
+        val targetBm = selectedOptionsBookmark!!
+
+        Dialog(onDismissRequest = { selectedOptionsBookmark = null }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "🔖 ${targetBm.label}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Verses: ${targetBm.reference}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider()
+
+                    Button(
+                        onClick = {
+                            val bm = targetBm
+                            selectedOptionsBookmark = null
+                            viewModel.openEditingBookmarkDialog(bm)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("✏️ Rename Bookmark")
+                    }
+
+                    Button(
+                        onClick = {
+                            val refKey = targetBm.reference
+                            selectedOptionsBookmark = null
+                            viewModel.deleteBookmark(refKey)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🗑️ Delete Bookmark")
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { selectedOptionsBookmark = null }) {
+                            Text("Cancel")
+                        }
+                    }
                 }
             }
         }
@@ -141,8 +213,7 @@ fun BookmarkCard(
     bookmark: BookmarkRecord,
     viewModel: BibleViewModel,
     onReadVerses: (String) -> Unit,
-    onRename: (BookmarkRecord) -> Unit,
-    onDelete: (String) -> Unit
+    onLongPress: (BookmarkRecord) -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
@@ -161,14 +232,19 @@ fun BookmarkCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded },
+            .pointerInput(bookmark.reference) {
+                detectTapGestures(
+                    onTap = { isExpanded = !isExpanded },
+                    onLongPress = { onLongPress(bookmark) }
+                )
+            },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header Row: Badge + Title + Actions
+            // Header Row: Badge + Title + Chevron Indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -192,20 +268,12 @@ fun BookmarkCard(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onRename(bookmark) }) {
-                        Text("✏️")
-                    }
-                    IconButton(onClick = { onDelete(bookmark.reference) }) {
-                        Text("🗑️")
-                    }
-                    Text(
-                        text = if (isExpanded) "▲" else "▼",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
+                Text(
+                    text = if (isExpanded) "▲" else "▼",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
             }
 
             Text(
