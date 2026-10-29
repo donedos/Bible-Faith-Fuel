@@ -504,7 +504,7 @@ fun BibleScreen(
                                         }
                                     }
                                 } else {
-                                    // Step 4: CONTINUOUS BOOK READING LAYOUT (Clean reading mode - long press opens options dialog)
+                                    // Step 4: CONTINUOUS BOOK READING LAYOUT (Restored original light highlight on tap)
                                     LazyColumn(
                                         state = readerListState,
                                         modifier = Modifier
@@ -539,7 +539,7 @@ fun BibleScreen(
                                             )
                                         }
 
-                                        // Verse Items (Tapping highlights with primaryContainer background fill)
+                                        // Verse Items (Restored tap to highlight with primaryContainer background fill)
                                         items(uiState.chapterVerses, key = { "${it.bookId}_${it.chapter}_${it.verse}" }) { verse ->
                                             val isHighlighted = uiState.selectedVerseNum == verse.verse
                                             val verseRef = "${verse.bookId} ${verse.chapter}:${verse.verse}"
@@ -596,6 +596,91 @@ fun BibleScreen(
                                                     color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else if (hasHighlight) Color(0xFF1C1C1E) else MaterialTheme.colorScheme.onBackground,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                                 )
+                                            }
+                                        }
+
+                                        // Action Card Item if Verse Selected
+                                        item {
+                                            uiState.selectedVerseNum?.let { vNum ->
+                                                val verseObj = uiState.chapterVerses.find { v -> v.verse == vNum }
+                                                if (verseObj != null) {
+                                                    val ref = "${verseObj.bookId} ${verseObj.chapter}:${verseObj.verse}"
+                                                    var cardNoteInput by remember { mutableStateOf("") }
+
+                                                    Card(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 8.dp),
+                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                                    ) {
+                                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Text(text = ref, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                                                Button(onClick = { viewModel.openBookmarkDialog(ref) }) {
+                                                                    Text("🔖 Save")
+                                                                }
+                                                            }
+
+                                                            Text(text = "🎨 Highlight Verse:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                                            val highlightPresetColors = listOf(
+                                                                "#FFF59D" to "Yellow",
+                                                                "#A5D6A7" to "Green",
+                                                                "#90CAF9" to "Blue",
+                                                                "#F48FB1" to "Pink",
+                                                                "#CE93D8" to "Purple",
+                                                                "#FFCC80" to "Orange"
+                                                            )
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                highlightPresetColors.forEach { (hex, _) ->
+                                                                    val parseColor = Color(android.graphics.Color.parseColor(hex))
+                                                                    val existingHighlight = uiState.highlights.find { h -> h.reference == ref }
+                                                                    val isSelected = existingHighlight?.color == hex
+
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .size(32.dp)
+                                                                            .clip(CircleShape)
+                                                                            .background(parseColor)
+                                                                            .border(
+                                                                                width = if (isSelected) 2.dp else 0.dp,
+                                                                                color = MaterialTheme.colorScheme.onSurface,
+                                                                                shape = CircleShape
+                                                                            )
+                                                                            .clickable { viewModel.saveHighlight(ref, hex) }
+                                                                    )
+                                                                }
+                                                                TextButton(onClick = { viewModel.saveHighlight(ref, "") }) {
+                                                                    Text("Clear", color = MaterialTheme.colorScheme.error)
+                                                                }
+                                                            }
+
+                                                            OutlinedTextField(
+                                                                value = cardNoteInput,
+                                                                onValueChange = { cardNoteInput = it },
+                                                                label = { Text("Add personal note for $ref") },
+                                                                modifier = Modifier.fillMaxWidth()
+                                                            )
+                                                            Button(
+                                                                onClick = {
+                                                                    if (cardNoteInput.isNotBlank()) {
+                                                                        viewModel.addNote(ref, cardNoteInput)
+                                                                        cardNoteInput = ""
+                                                                    }
+                                                                }
+                                                            ) {
+                                                                Text("Save Note")
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -723,7 +808,7 @@ fun BibleScreen(
                                     .background(parseColor)
                                     .border(
                                         width = if (isSelected) 3.dp else 0.dp,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         shape = CircleShape
                                     )
                                     .clickable {
