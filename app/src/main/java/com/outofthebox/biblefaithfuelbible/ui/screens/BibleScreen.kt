@@ -434,12 +434,17 @@ fun BibleScreen(
                                             Button(
                                                 onClick = { viewModel.selectBook(book) },
                                                 modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
                                             ) {
                                                 Text(
                                                     text = book.name,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    fontWeight = FontWeight.SemiBold
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.basicMarquee()
                                                 )
                                             }
                                         }
