@@ -1,5 +1,12 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -54,7 +61,6 @@ fun BibleScreen(
     val readerListState = rememberLazyListState()
 
     var showSearchField by remember { mutableStateOf(false) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
 
     // Scroll selected verse to top ONLY when explicitly requested (e.g. from Verse Picker)
     LaunchedEffect(uiState.selectedVerseNum, uiState.selectedChapter, uiState.shouldScrollToVerse) {
@@ -509,181 +515,207 @@ fun BibleScreen(
                                         }
                                     }
                                 } else {
-                                    // Step 4: CONTINUOUS BOOK READING LAYOUT (With Custom Selected Typography Font)
-                                    LazyColumn(
-                                        state = readerListState,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .pointerInput(uiState.selectedBook?.id to uiState.selectedChapter) {
-                                                detectHorizontalDragGestures(
-                                                    onDragEnd = {
-                                                        if (offsetX < -80f) {
-                                                            viewModel.nextChapter()
-                                                        } else if (offsetX > 80f) {
-                                                            viewModel.previousChapter()
+                                    // Step 4: CONTINUOUS BOOK READING LAYOUT WITH PAGE FLIP ANIMATION
+                                    AnimatedContent(
+                                        targetState = uiState.selectedChapter to uiState.selectedBook?.id,
+                                        transitionSpec = {
+                                            val dir = uiState.chapterTransitionDirection
+                                            if (dir > 0) {
+                                                (slideInHorizontally(animationSpec = tween(350)) { width -> width } + fadeIn(animationSpec = tween(350)))
+                                                    .togetherWith(slideOutHorizontally(animationSpec = tween(350)) { width -> -width } + fadeOut(animationSpec = tween(350)))
+                                            } else if (dir < 0) {
+                                                (slideInHorizontally(animationSpec = tween(350)) { width -> -width } + fadeIn(animationSpec = tween(350)))
+                                                    .togetherWith(slideOutHorizontally(animationSpec = tween(350)) { width -> width } + fadeOut(animationSpec = tween(350)))
+                                            } else {
+                                                fadeIn(animationSpec = tween(250)) togetherWith fadeOut(animationSpec = tween(250))
+                                            }
+                                        },
+                                        label = "PageFlipAnimation",
+                                        modifier = Modifier.weight(1f)
+                                    ) { _ ->
+                                        LazyColumn(
+                                            state = readerListState,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .pointerInput(uiState.selectedBook?.id to uiState.selectedChapter) {
+                                                    var swipeTotal = 0f
+                                                    detectHorizontalDragGestures(
+                                                        onDragStart = {
+                                                            swipeTotal = 0f
+                                                        },
+                                                        onDragEnd = {
+                                                            if (swipeTotal < -60f) {
+                                                                viewModel.nextChapter()
+                                                            } else if (swipeTotal > 60f) {
+                                                                viewModel.previousChapter()
+                                                            }
+                                                            swipeTotal = 0f
+                                                        },
+                                                        onDragCancel = {
+                                                            swipeTotal = 0f
+                                                        },
+                                                        onHorizontalDrag = { change, dragAmount ->
+                                                            change.consume()
+                                                            swipeTotal += dragAmount
                                                         }
-                                                        offsetX = 0f
-                                                    },
-                                                    onHorizontalDrag = { _, dragAmount ->
-                                                        offsetX += dragAmount
-                                                    }
+                                                    )
+                                                },
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            // Header Item: Book Title
+                                            item {
+                                                Text(
+                                                    text = "${uiState.selectedBook!!.name} ${uiState.selectedChapter}",
+                                                    style = MaterialTheme.typography.headlineLarge.copy(
+                                                        fontStyle = FontStyle.Italic,
+                                                        fontSize = 28.sp
+                                                    ),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = uiState.selectedFontOption.toFontFamily(),
+                                                    modifier = Modifier.padding(vertical = 8.dp)
                                                 )
-                                            },
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        // Header Item: Book Title
-                                        item {
-                                            Text(
-                                                text = "${uiState.selectedBook!!.name} ${uiState.selectedChapter}",
-                                                style = MaterialTheme.typography.headlineLarge.copy(
-                                                    fontStyle = FontStyle.Italic,
-                                                    fontSize = 28.sp
-                                                ),
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = uiState.selectedFontOption.toFontFamily(),
-                                                modifier = Modifier.padding(vertical = 8.dp)
-                                            )
-                                        }
+                                            }
 
-                                        // Verse Items (Applying Custom Selected Font)
-                                        items(uiState.chapterVerses, key = { "${it.bookId}_${it.chapter}_${it.verse}" }) { verse ->
-                                            val isHighlighted = uiState.selectedVerseNum == verse.verse
-                                            val verseRef = "${verse.bookId} ${verse.chapter}:${verse.verse}"
+                                            // Verse Items (Applying Custom Selected Font)
+                                            items(uiState.chapterVerses, key = { "${it.bookId}_${it.chapter}_${it.verse}" }) { verse ->
+                                                val isHighlighted = uiState.selectedVerseNum == verse.verse
+                                                val verseRef = "${verse.bookId} ${verse.chapter}:${verse.verse}"
 
-                                            val highlightRecord = uiState.highlights.find { it.reference == verseRef }
-                                            val highlightColor = if (highlightRecord != null && highlightRecord.color.isNotBlank()) {
-                                                try {
-                                                    Color(android.graphics.Color.parseColor(highlightRecord.color))
-                                                } catch (e: Exception) {
+                                                val highlightRecord = uiState.highlights.find { it.reference == verseRef }
+                                                val highlightColor = if (highlightRecord != null && highlightRecord.color.isNotBlank()) {
+                                                    try {
+                                                        Color(android.graphics.Color.parseColor(highlightRecord.color))
+                                                    } catch (e: Exception) {
+                                                        Color.Transparent
+                                                    }
+                                                } else {
                                                     Color.Transparent
                                                 }
-                                            } else {
-                                                Color.Transparent
-                                            }
 
-                                            val hasHighlight = highlightColor != Color.Transparent
+                                                val hasHighlight = highlightColor != Color.Transparent
 
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = if (isHighlighted)
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                else if (hasHighlight)
-                                                    highlightColor
-                                                else
-                                                    Color.Transparent,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 2.dp)
-                                                    .pointerInput(verse.verse) {
-                                                        detectTapGestures(
-                                                            onTap = { viewModel.selectVerseNumber(verse.verse) },
-                                                            onLongPress = { viewModel.openVerseActionDialog(verseRef) }
-                                                        )
-                                                    }
-                                            ) {
-                                                Text(
-                                                    text = buildAnnotatedString {
-                                                        withStyle(
-                                                            style = SpanStyle(
-                                                                fontSize = (uiState.fontSizeSp * 0.7).sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                baselineShift = BaselineShift.Superscript,
-                                                                color = if (isHighlighted) MaterialTheme.colorScheme.primary else if (hasHighlight) Color(0xFF333333) else MaterialTheme.colorScheme.primary
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (isHighlighted)
+                                                        MaterialTheme.colorScheme.primaryContainer
+                                                    else if (hasHighlight)
+                                                        highlightColor
+                                                    else
+                                                        Color.Transparent,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 2.dp)
+                                                        .pointerInput(verse.verse) {
+                                                            detectTapGestures(
+                                                                onTap = { viewModel.selectVerseNumber(verse.verse) },
+                                                                onLongPress = { viewModel.openVerseActionDialog(verseRef) }
                                                             )
-                                                        ) {
-                                                            append("${verse.verse} ")
                                                         }
-                                                        append("${verse.text} ")
-                                                    },
-                                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                                        fontSize = uiState.fontSizeSp.sp,
-                                                        lineHeight = (uiState.fontSizeSp * 1.5).sp,
-                                                        fontFamily = uiState.selectedFontOption.toFontFamily()
-                                                    ),
-                                                    color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else if (hasHighlight) Color(0xFF1C1C1E) else MaterialTheme.colorScheme.onBackground,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                                                )
+                                                ) {
+                                                    Text(
+                                                        text = buildAnnotatedString {
+                                                            withStyle(
+                                                                style = SpanStyle(
+                                                                    fontSize = (uiState.fontSizeSp * 0.7).sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    baselineShift = BaselineShift.Superscript,
+                                                                    color = if (isHighlighted) MaterialTheme.colorScheme.primary else if (hasHighlight) Color(0xFF333333) else MaterialTheme.colorScheme.primary
+                                                                )
+                                                            ) {
+                                                                append("${verse.verse} ")
+                                                            }
+                                                            append("${verse.text} ")
+                                                        },
+                                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                                            fontSize = uiState.fontSizeSp.sp,
+                                                            lineHeight = (uiState.fontSizeSp * 1.5).sp,
+                                                            fontFamily = uiState.selectedFontOption.toFontFamily()
+                                                        ),
+                                                        color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else if (hasHighlight) Color(0xFF1C1C1E) else MaterialTheme.colorScheme.onBackground,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                                    )
+                                                }
                                             }
-                                        }
 
-                                        // Action Card Item if Verse Selected
-                                        item {
-                                            uiState.selectedVerseNum?.let { vNum ->
-                                                val verseObj = uiState.chapterVerses.find { v -> v.verse == vNum }
-                                                if (verseObj != null) {
-                                                    val ref = "${verseObj.bookId} ${verseObj.chapter}:${verseObj.verse}"
-                                                    var cardNoteInput by remember { mutableStateOf("") }
+                                            // Action Card Item if Verse Selected
+                                            item {
+                                                uiState.selectedVerseNum?.let { vNum ->
+                                                    val verseObj = uiState.chapterVerses.find { v -> v.verse == vNum }
+                                                    if (verseObj != null) {
+                                                        val ref = "${verseObj.bookId} ${verseObj.chapter}:${verseObj.verse}"
+                                                        var cardNoteInput by remember { mutableStateOf("") }
 
-                                                    Card(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(vertical = 8.dp),
-                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                                    ) {
-                                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Text(text = ref, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                                Button(onClick = { viewModel.openBookmarkDialog(ref) }) {
-                                                                    Text("🔖 Save")
-                                                                }
-                                                            }
-
-                                                            Text(text = "🎨 Highlight Verse:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                                            val highlightPresetColors = listOf(
-                                                                "#FFF59D" to "Yellow",
-                                                                "#A5D6A7" to "Green",
-                                                                "#90CAF9" to "Blue",
-                                                                "#F48FB1" to "Pink",
-                                                                "#CE93D8" to "Purple",
-                                                                "#FFCC80" to "Orange"
-                                                            )
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                highlightPresetColors.forEach { (hex, _) ->
-                                                                    val parseColor = Color(android.graphics.Color.parseColor(hex))
-                                                                    val existingHighlight = uiState.highlights.find { h -> h.reference == ref }
-                                                                    val isSelected = existingHighlight?.color == hex
-
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .size(32.dp)
-                                                                            .clip(CircleShape)
-                                                                            .background(parseColor)
-                                                                            .border(
-                                                                                width = if (isSelected) 2.dp else 0.dp,
-                                                                                color = MaterialTheme.colorScheme.onSurface,
-                                                                                shape = CircleShape
-                                                                            )
-                                                                            .clickable { viewModel.saveHighlight(ref, hex) }
-                                                                    )
-                                                                }
-                                                                TextButton(onClick = { viewModel.saveHighlight(ref, "") }) {
-                                                                    Text("Clear", color = MaterialTheme.colorScheme.error)
-                                                                }
-                                                            }
-
-                                                            OutlinedTextField(
-                                                                value = cardNoteInput,
-                                                                onValueChange = { cardNoteInput = it },
-                                                                label = { Text("Add personal note for $ref") },
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                            Button(
-                                                                onClick = {
-                                                                    if (cardNoteInput.isNotBlank()) {
-                                                                        viewModel.addNote(ref, cardNoteInput)
-                                                                        cardNoteInput = ""
+                                                        Card(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(vertical = 8.dp),
+                                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                                        ) {
+                                                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    Text(text = ref, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                                                    Button(onClick = { viewModel.openBookmarkDialog(ref) }) {
+                                                                        Text("🔖 Save")
                                                                     }
                                                                 }
-                                                            ) {
-                                                                Text("Save Note")
+
+                                                                Text(text = "🎨 Highlight Verse:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                                                val highlightPresetColors = listOf(
+                                                                    "#FFF59D" to "Yellow",
+                                                                    "#A5D6A7" to "Green",
+                                                                    "#90CAF9" to "Blue",
+                                                                    "#F48FB1" to "Pink",
+                                                                    "#CE93D8" to "Purple",
+                                                                    "#FFCC80" to "Orange"
+                                                                )
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    highlightPresetColors.forEach { (hex, _) ->
+                                                                        val parseColor = Color(android.graphics.Color.parseColor(hex))
+                                                                        val existingHighlight = uiState.highlights.find { h -> h.reference == ref }
+                                                                        val isSelected = existingHighlight?.color == hex
+
+                                                                        Box(
+                                                                            modifier = Modifier
+                                                                                .size(32.dp)
+                                                                                .clip(CircleShape)
+                                                                                .background(parseColor)
+                                                                                .border(
+                                                                                    width = if (isSelected) 2.dp else 0.dp,
+                                                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                                                    shape = CircleShape
+                                                                                )
+                                                                                .clickable { viewModel.saveHighlight(ref, hex) }
+                                                                        )
+                                                                    }
+                                                                    TextButton(onClick = { viewModel.saveHighlight(ref, "") }) {
+                                                                        Text("Clear", color = MaterialTheme.colorScheme.error)
+                                                                    }
+                                                                }
+
+                                                                OutlinedTextField(
+                                                                    value = cardNoteInput,
+                                                                    onValueChange = { cardNoteInput = it },
+                                                                    label = { Text("Add personal note for $ref") },
+                                                                    modifier = Modifier.fillMaxWidth()
+                                                                )
+                                                                Button(
+                                                                    onClick = {
+                                                                        if (cardNoteInput.isNotBlank()) {
+                                                                            viewModel.addNote(ref, cardNoteInput)
+                                                                            cardNoteInput = ""
+                                                                        }
+                                                                    }
+                                                                ) {
+                                                                    Text("Save Note")
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -815,7 +847,7 @@ fun BibleScreen(
                                     .background(parseColor)
                                     .border(
                                         width = if (isSelected) 3.dp else 0.dp,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         shape = CircleShape
                                     )
                                     .clickable {

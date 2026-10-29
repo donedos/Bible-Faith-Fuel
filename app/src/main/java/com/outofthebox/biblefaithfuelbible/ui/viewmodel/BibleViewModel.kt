@@ -39,6 +39,7 @@ data class BibleUiState(
     val selectedVerseNum: Int? = null,
     val isPickingVerse: Boolean = false,
     val shouldScrollToVerse: Boolean = false,
+    val chapterTransitionDirection: Int = 0, // 1 for next, -1 for previous, 0 for none
     val fontSizeSp: Int = 18,
     val searchQuery: String = "",
     val suggestions: List<String> = emptyList(),
@@ -128,6 +129,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                                 selectedVerseNum = verseNum,
                                 isPickingVerse = false,
                                 shouldScrollToVerse = true,
+                                chapterTransitionDirection = 0,
                                 selectedDrawerTab = "reader",
                                 searchQuery = "",
                                 offlineSearchResults = emptyList()
@@ -190,7 +192,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 chapterVerses = emptyList(),
                 selectedVerseNum = null,
                 isPickingVerse = false,
-                shouldScrollToVerse = false
+                shouldScrollToVerse = false,
+                chapterTransitionDirection = 0
             )
         }
         loadBooks(uiState.value.isOldTestament)
@@ -290,7 +293,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 chapterVerses = emptyList(),
                 selectedVerseNum = null,
                 isPickingVerse = false,
-                shouldScrollToVerse = false
+                shouldScrollToVerse = false,
+                chapterTransitionDirection = 0
             )
         }
         loadBooks(isOldTestament)
@@ -314,7 +318,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                     chapterVerses = emptyList(),
                     selectedVerseNum = null,
                     isPickingVerse = false,
-                    shouldScrollToVerse = false
+                    shouldScrollToVerse = false,
+                    chapterTransitionDirection = 0
                 )
             }
         }
@@ -330,22 +335,23 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                     chapterVerses = verses,
                     isPickingVerse = true,
                     selectedVerseNum = null,
-                    shouldScrollToVerse = false
+                    shouldScrollToVerse = false,
+                    chapterTransitionDirection = 0
                 )
             }
         }
     }
 
     fun readFullChapter() {
-        _uiState.update { it.copy(isPickingVerse = false, selectedVerseNum = null, shouldScrollToVerse = false) }
+        _uiState.update { it.copy(isPickingVerse = false, selectedVerseNum = null, shouldScrollToVerse = false, chapterTransitionDirection = 0) }
     }
 
     fun selectExactVerse(verseNum: Int) {
-        _uiState.update { it.copy(isPickingVerse = false, selectedVerseNum = verseNum, shouldScrollToVerse = true) }
+        _uiState.update { it.copy(isPickingVerse = false, selectedVerseNum = verseNum, shouldScrollToVerse = true, chapterTransitionDirection = 0) }
     }
 
     fun clearScrollToVerseFlag() {
-        _uiState.update { it.copy(shouldScrollToVerse = false) }
+        _uiState.update { it.copy(shouldScrollToVerse = false, chapterTransitionDirection = 0) }
     }
 
     fun selectVerseNumber(verseNum: Int?) {
@@ -368,7 +374,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun openChapterDirectly(chapter: Int) {
+    private fun openChapterDirectly(chapter: Int, direction: Int) {
         val book = _uiState.value.selectedBook ?: return
         viewModelScope.launch {
             val verses = repository.getVersesForChapter(book.id, chapter)
@@ -378,7 +384,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                     chapterVerses = verses,
                     isPickingVerse = false,
                     selectedVerseNum = null,
-                    shouldScrollToVerse = false
+                    shouldScrollToVerse = false,
+                    chapterTransitionDirection = direction
                 )
             }
         }
@@ -390,7 +397,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         val maxChapter = _uiState.value.chapters.maxOrNull() ?: 1
 
         if (currentChapter < maxChapter) {
-            openChapterDirectly(currentChapter + 1)
+            openChapterDirectly(currentChapter + 1, 1)
         } else {
             // Move to next book if available
             val books = _uiState.value.books
@@ -408,7 +415,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                             chapterVerses = verses,
                             isPickingVerse = false,
                             selectedVerseNum = null,
-                            shouldScrollToVerse = false
+                            shouldScrollToVerse = false,
+                            chapterTransitionDirection = 1
                         )
                     }
                 }
@@ -421,7 +429,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         val currentChapter = _uiState.value.selectedChapter ?: 1
 
         if (currentChapter > 1) {
-            openChapterDirectly(currentChapter - 1)
+            openChapterDirectly(currentChapter - 1, -1)
         } else {
             // Move to previous book's last chapter
             val books = _uiState.value.books
@@ -440,7 +448,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                             chapterVerses = verses,
                             isPickingVerse = false,
                             selectedVerseNum = null,
-                            shouldScrollToVerse = false
+                            shouldScrollToVerse = false,
+                            chapterTransitionDirection = -1
                         )
                     }
                 }
@@ -457,7 +466,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 chapterVerses = emptyList(),
                 selectedVerseNum = null,
                 isPickingVerse = false,
-                shouldScrollToVerse = false
+                shouldScrollToVerse = false,
+                chapterTransitionDirection = 0
             )
         }
     }
@@ -469,7 +479,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 chapterVerses = emptyList(),
                 selectedVerseNum = null,
                 isPickingVerse = false,
-                shouldScrollToVerse = false
+                shouldScrollToVerse = false,
+                chapterTransitionDirection = 0
             )
         }
     }
