@@ -1,6 +1,5 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -37,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.outofthebox.biblefaithfuelbible.ui.theme.IosAccentColor
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleViewModel
 import kotlinx.coroutines.launch
 
@@ -53,30 +51,7 @@ fun BibleScreen(
     val readerListState = rememberLazyListState()
 
     var showSearchField by remember { mutableStateOf(false) }
-
-    val isAtRoot = uiState.selectedDrawerTab == "reader" &&
-            uiState.selectedBook == null &&
-            uiState.searchQuery.isBlank() &&
-            !showSearchField &&
-            !drawerState.isOpen
-
-    // Hierarchical System Back Button / Gesture Handler
-    BackHandler(enabled = !isAtRoot) {
-        if (drawerState.isOpen) {
-            coroutineScope.launch { drawerState.close() }
-        } else if (uiState.searchQuery.isNotBlank() || showSearchField) {
-            viewModel.updateSearchQuery("")
-            showSearchField = false
-        } else if (uiState.selectedDrawerTab != "reader") {
-            viewModel.selectDrawerTab("reader")
-        } else if (uiState.isPickingVerse) {
-            viewModel.goBackToChapters()
-        } else if (uiState.selectedChapter != null) {
-            viewModel.goBackToChapters()
-        } else if (uiState.selectedBook != null) {
-            viewModel.goBackToBooks()
-        }
-    }
+    var offsetX by remember { mutableFloatStateOf(0f) }
 
     // Scroll selected verse to top ONLY when explicitly requested (e.g. from Verse Picker)
     LaunchedEffect(uiState.selectedVerseNum, uiState.selectedChapter, uiState.shouldScrollToVerse) {
@@ -154,16 +129,24 @@ fun BibleScreen(
                                     coroutineScope.launch { drawerState.close() }
                                 }
                             )
+
+                            NavigationDrawerItem(
+                                label = { Text("⚙️ Settings", fontWeight = FontWeight.SemiBold) },
+                                selected = uiState.selectedDrawerTab == "settings",
+                                onClick = {
+                                    viewModel.selectDrawerTab("settings")
+                                    coroutineScope.launch { drawerState.close() }
+                                }
+                            )
                         }
 
-                        // Bottom Section: Dark Mode Toggle & Settings ⚙️
+                        // Bottom Section: Dark Mode Toggle
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             HorizontalDivider()
 
-                            // Dark Mode Toggle Row in Drawer
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -187,37 +170,13 @@ fun BibleScreen(
                                     onCheckedChange = { viewModel.updateDarkTheme(it) }
                                 )
                             }
-
-                            NavigationDrawerItem(
-                                label = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Text("⚙️", style = MaterialTheme.typography.titleLarge)
-                                        Column {
-                                            Text("Settings", fontWeight = FontWeight.Bold)
-                                            Text(
-                                                text = "${uiState.selectedTranslation} • ${uiState.selectedIosAccent.displayName}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                },
-                                selected = false,
-                                onClick = {
-                                    coroutineScope.launch { drawerState.close() }
-                                    viewModel.openSettingsDialog()
-                                }
-                            )
                         }
                     }
                 }
             }
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // Route between Standalone Bookmarks Screen, Notes Screen, and Reader View
+                // Route between Standalone Bookmarks Screen, Notes Screen, Settings Screen, and Reader View
                 when (uiState.selectedDrawerTab) {
                     "bookmarks" -> {
                         BookmarksScreen(
@@ -227,6 +186,12 @@ fun BibleScreen(
                     }
                     "notes" -> {
                         NotesScreen(
+                            viewModel = viewModel,
+                            onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                        )
+                    }
+                    "settings" -> {
+                        SettingsScreen(
                             viewModel = viewModel,
                             onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                         )
@@ -393,7 +358,7 @@ fun BibleScreen(
                                                         Text(if (isBookmarked) "🔖" else "📑")
                                                     }
                                                 }
-                                                Text(text = verse.text, style = MaterialTheme.typography.bodyMedium)
+                                                Text(text = verse.text, style = MaterialTheme.typography.bodyMedium, fontFamily = uiState.selectedFontOption.toFontFamily())
                                             }
                                         }
                                     }
@@ -528,31 +493,23 @@ fun BibleScreen(
                                         }
                                     }
                                 } else {
-                                    // Step 4: CONTINUOUS BOOK READING LAYOUT (Restored original light highlight on tap)
+                                    // Step 4: CONTINUOUS BOOK READING LAYOUT (With Custom Selected Typography Font)
                                     LazyColumn(
                                         state = readerListState,
                                         modifier = Modifier
                                             .weight(1f)
                                             .pointerInput(uiState.selectedBook?.id to uiState.selectedChapter) {
-                                                var swipeTotal = 0f
                                                 detectHorizontalDragGestures(
-                                                    onDragStart = {
-                                                        swipeTotal = 0f
-                                                    },
                                                     onDragEnd = {
-                                                        if (swipeTotal < -60f) {
+                                                        if (offsetX < -80f) {
                                                             viewModel.nextChapter()
-                                                        } else if (swipeTotal > 60f) {
+                                                        } else if (offsetX > 80f) {
                                                             viewModel.previousChapter()
                                                         }
-                                                        swipeTotal = 0f
+                                                        offsetX = 0f
                                                     },
-                                                    onDragCancel = {
-                                                        swipeTotal = 0f
-                                                    },
-                                                    onHorizontalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        swipeTotal += dragAmount
+                                                    onHorizontalDrag = { _, dragAmount ->
+                                                        offsetX += dragAmount
                                                     }
                                                 )
                                             },
@@ -567,11 +524,12 @@ fun BibleScreen(
                                                     fontSize = 28.sp
                                                 ),
                                                 fontWeight = FontWeight.Bold,
+                                                fontFamily = uiState.selectedFontOption.toFontFamily(),
                                                 modifier = Modifier.padding(vertical = 8.dp)
                                             )
                                         }
 
-                                        // Verse Items (Restored tap to highlight with primaryContainer background fill)
+                                        // Verse Items (Applying Custom Selected Font)
                                         items(uiState.chapterVerses, key = { "${it.bookId}_${it.chapter}_${it.verse}" }) { verse ->
                                             val isHighlighted = uiState.selectedVerseNum == verse.verse
                                             val verseRef = "${verse.bookId} ${verse.chapter}:${verse.verse}"
@@ -623,7 +581,8 @@ fun BibleScreen(
                                                     },
                                                     style = MaterialTheme.typography.bodyLarge.copy(
                                                         fontSize = uiState.fontSizeSp.sp,
-                                                        lineHeight = (uiState.fontSizeSp * 1.5).sp
+                                                        lineHeight = (uiState.fontSizeSp * 1.5).sp,
+                                                        fontFamily = uiState.selectedFontOption.toFontFamily()
                                                     ),
                                                     color = if (isHighlighted) MaterialTheme.colorScheme.onPrimaryContainer else if (hasHighlight) Color(0xFF1C1C1E) else MaterialTheme.colorScheme.onBackground,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
@@ -637,7 +596,7 @@ fun BibleScreen(
                                                 val verseObj = uiState.chapterVerses.find { v -> v.verse == vNum }
                                                 if (verseObj != null) {
                                                     val ref = "${verseObj.bookId} ${verseObj.chapter}:${verseObj.verse}"
-                                                    var noteInput by remember(ref) { mutableStateOf("") }
+                                                    var cardNoteInput by remember { mutableStateOf("") }
 
                                                     Card(
                                                         modifier = Modifier
@@ -695,16 +654,16 @@ fun BibleScreen(
                                                             }
 
                                                             OutlinedTextField(
-                                                                value = noteInput,
-                                                                onValueChange = { noteInput = it },
+                                                                value = cardNoteInput,
+                                                                onValueChange = { cardNoteInput = it },
                                                                 label = { Text("Add personal note for $ref") },
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
                                                             Button(
                                                                 onClick = {
-                                                                    if (noteInput.isNotBlank()) {
-                                                                        viewModel.addNote(ref, noteInput)
-                                                                        noteInput = ""
+                                                                    if (cardNoteInput.isNotBlank()) {
+                                                                        viewModel.addNote(ref, cardNoteInput)
+                                                                        cardNoteInput = ""
                                                                     }
                                                                 }
                                                             ) {
@@ -1126,171 +1085,6 @@ fun BibleScreen(
                             }
                         ) {
                             Text("Save")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Consolidated Settings Dialog with Dark Mode Switch, Translation Selector & Color Accent Dropdown
-    if (uiState.isSettingsDialogOpen) {
-        Dialog(onDismissRequest = { viewModel.closeSettingsDialog() }) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "⚙️ Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    // 1. Dark / Light Mode Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(if (uiState.isDarkTheme) "🌙" else "☀️", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                text = if (uiState.isDarkTheme) "Dark Theme" else "Light Theme",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                        Switch(
-                            checked = uiState.isDarkTheme,
-                            onCheckedChange = { viewModel.updateDarkTheme(it) }
-                        )
-                    }
-
-                    HorizontalDivider()
-
-                    // 2. Bible Translation Selector (ASV vs BSB)
-                    Text(
-                        text = "Bible Translation:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    var translationExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = translationExpanded,
-                        onExpandedChange = { translationExpanded = !translationExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = if (uiState.selectedTranslation == "BSB") "BSB (Berean Standard Bible)" else "ASV (American Standard Version)",
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = translationExpanded) },
-                            modifier = Modifier
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = translationExpanded,
-                            onDismissRequest = { translationExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("ASV (American Standard Version)") },
-                                onClick = {
-                                    viewModel.updateTranslation("ASV")
-                                    translationExpanded = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("BSB (Berean Standard Bible)") },
-                                onClick = {
-                                    viewModel.updateTranslation("BSB")
-                                    translationExpanded = false
-                                }
-                            )
-                        }
-                    }
-
-                    // 3. Color Accent Dropdown Menu with Color Preview Circle
-                    Text(
-                        text = "Color Accent:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    var accentExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = accentExpanded,
-                        onExpandedChange = { accentExpanded = !accentExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.selectedIosAccent.displayName,
-                            onValueChange = {},
-                            readOnly = true,
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(uiState.selectedIosAccent.primaryHex))
-                                )
-                            },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accentExpanded) },
-                            modifier = Modifier
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = accentExpanded,
-                            onDismissRequest = { accentExpanded = false }
-                        ) {
-                            IosAccentColor.entries.forEach { accent ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(16.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(accent.primaryHex))
-                                            )
-                                            Text(accent.displayName)
-                                        }
-                                    },
-                                    onClick = {
-                                        viewModel.updateIosAccentColor(accent)
-                                        accentExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Button(onClick = { viewModel.closeSettingsDialog() }) {
-                            Text("Done")
                         }
                     }
                 }

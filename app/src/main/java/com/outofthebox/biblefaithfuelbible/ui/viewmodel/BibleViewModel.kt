@@ -11,6 +11,7 @@ import com.outofthebox.biblefaithfuelbible.data.local.HighlightRecord
 import com.outofthebox.biblefaithfuelbible.data.local.NoteRecord
 import com.outofthebox.biblefaithfuelbible.data.local.VerseRecord
 import com.outofthebox.biblefaithfuelbible.data.repository.BibleRepository
+import com.outofthebox.biblefaithfuelbible.ui.theme.AppFontOption
 import com.outofthebox.biblefaithfuelbible.ui.theme.IosAccentColor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,10 +23,11 @@ data class BibleUiState(
     val selectedIosAccent: IosAccentColor = IosAccentColor.BLUE,
     val isDarkTheme: Boolean = false,
     val selectedTranslation: String = "BSB",
+    val selectedFontOption: AppFontOption = AppFontOption.DEFAULT,
     val isSettingsDialogOpen: Boolean = false,
     val bookmarkDialogVerseRef: String? = null,
     val verseActionDialogRef: String? = null,
-    val selectedDrawerTab: String = "reader", // "reader", "bookmarks", "notes"
+    val selectedDrawerTab: String = "reader", // "reader", "bookmarks", "notes", "settings"
     val editingBookmark: BookmarkRecord? = null,
     val isOldTestament: Boolean = true,
     val books: List<BookRecord> = emptyList(),
@@ -65,10 +67,16 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         val isDark = sp.getBoolean("is_dark_theme", false)
         val translation = sp.getString("bible_translation", "BSB") ?: "BSB"
         val fontSize = sp.getInt("font_size_sp", 18)
+        val fontName = sp.getString("app_font_option", AppFontOption.DEFAULT.name)
         val accent = try {
             IosAccentColor.valueOf(savedName ?: IosAccentColor.BLUE.name)
         } catch (e: Exception) {
             IosAccentColor.BLUE
+        }
+        val fontOption = try {
+            AppFontOption.valueOf(fontName ?: AppFontOption.DEFAULT.name)
+        } catch (e: Exception) {
+            AppFontOption.DEFAULT
         }
         dbHelper.setTranslation(translation)
         _uiState.update {
@@ -76,9 +84,15 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 selectedIosAccent = accent,
                 isDarkTheme = isDark,
                 selectedTranslation = translation,
-                fontSizeSp = fontSize
+                fontSizeSp = fontSize,
+                selectedFontOption = fontOption
             )
         }
+    }
+
+    fun updateFontOption(option: AppFontOption) {
+        sp.edit().putString("app_font_option", option.name).apply()
+        _uiState.update { it.copy(selectedFontOption = option) }
     }
 
     fun getVersesByReferences(referencesStr: String): List<VerseRecord> {
