@@ -68,14 +68,10 @@ fun BookmarksScreen(
                 }
 
                 Text(
-                    text = "🔖 Saved Bookmarks",
+                    text = "Bookmarks",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-            }
-
-            TextButton(onClick = { viewModel.selectDrawerTab("reader") }) {
-                Text("← Bible Reader")
             }
         }
 

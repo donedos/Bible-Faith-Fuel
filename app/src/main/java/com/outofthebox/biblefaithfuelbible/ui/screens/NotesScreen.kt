@@ -65,14 +65,10 @@ fun NotesScreen(
                 }
 
                 Text(
-                    text = "📝 Personal Notes",
+                    text = "Notes",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-            }
-
-            TextButton(onClick = { viewModel.selectDrawerTab("reader") }) {
-                Text("← Bible Reader")
             }
         }
 

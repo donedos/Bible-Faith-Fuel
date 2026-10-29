@@ -464,9 +464,10 @@ fun BibleScreen(
                                         items(uiState.chapters) { chapter ->
                                             OutlinedButton(
                                                 onClick = { viewModel.selectChapter(chapter) },
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp)
                                             ) {
-                                                Text(text = "$chapter", fontWeight = FontWeight.Bold)
+                                                Text(text = "$chapter", fontWeight = FontWeight.Bold, maxLines = 1)
                                             }
                                         }
                                     }
@@ -500,9 +501,10 @@ fun BibleScreen(
                                         items(uiState.chapterVerses) { verse ->
                                             OutlinedButton(
                                                 onClick = { viewModel.selectExactVerse(verse.verse) },
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp)
                                             ) {
-                                                Text(text = "${verse.verse}", fontWeight = FontWeight.Bold)
+                                                Text(text = "${verse.verse}", fontWeight = FontWeight.Bold, maxLines = 1)
                                             }
                                         }
                                     }
