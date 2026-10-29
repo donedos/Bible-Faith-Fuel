@@ -124,19 +124,27 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun parseVerseReference(refStr: String): Triple<String, Int, Int>? {
-        val regex = Regex("^([1-3]?\\s*[a-zA-Z]+)\\s+(\\d+):(\\d+)$", RegexOption.IGNORE_CASE)
-        val match = regex.find(refStr.trim())
-        if (match != null) {
-            val book = BibleDatabaseHelper.resolveBookName(match.groupValues[1])
-            val chapter = match.groupValues[2].toIntOrNull() ?: 1
-            val verse = match.groupValues[3].toIntOrNull() ?: 1
-            return Triple(book, chapter, verse)
+        val trimmed = refStr.trim()
+        val colonIdx = trimmed.lastIndexOf(':')
+        if (colonIdx != -1) {
+            val verseStr = trimmed.substring(colonIdx + 1).trim()
+            val beforeColon = trimmed.substring(0, colonIdx).trim()
+            val spaceIdx = beforeColon.lastIndexOf(' ')
+            if (spaceIdx != -1) {
+                val rawBook = beforeColon.substring(0, spaceIdx).trim()
+                val chapterStr = beforeColon.substring(spaceIdx + 1).trim()
+                val book = BibleDatabaseHelper.resolveBookName(rawBook)
+                val chapter = chapterStr.toIntOrNull() ?: 1
+                val verse = verseStr.toIntOrNull() ?: 1
+                return Triple(book, chapter, verse)
+            }
         }
-        val regexNoVerse = Regex("^([1-3]?\\s*[a-zA-Z]+)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
-        val matchNoVerse = regexNoVerse.find(refStr.trim())
-        if (matchNoVerse != null) {
-            val book = BibleDatabaseHelper.resolveBookName(matchNoVerse.groupValues[1])
-            val chapter = matchNoVerse.groupValues[2].toIntOrNull() ?: 1
+        val spaceIdx = trimmed.lastIndexOf(' ')
+        if (spaceIdx != -1) {
+            val rawBook = trimmed.substring(0, spaceIdx).trim()
+            val chapterStr = trimmed.substring(spaceIdx + 1).trim()
+            val book = BibleDatabaseHelper.resolveBookName(rawBook)
+            val chapter = chapterStr.toIntOrNull() ?: 1
             return Triple(book, chapter, 1)
         }
         return null
