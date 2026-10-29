@@ -6,9 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.outofthebox.biblefaithfuelbible.ui.screens.BibleScreen
@@ -24,15 +21,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: BibleViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
-            var showSplash by remember { mutableStateOf(true) }
 
             BibleFaithFuelBibleTheme(
                 accentColor = uiState.selectedIosAccent,
                 darkTheme = uiState.isDarkTheme
             ) {
-                if (showSplash) {
+                if (!uiState.hasShownSplash) {
                     SplashScreen(
-                        onSplashFinished = { showSplash = false }
+                        onSplashFinished = { viewModel.markSplashShown() }
                     )
                 } else {
                     BibleScreen(viewModel = viewModel)

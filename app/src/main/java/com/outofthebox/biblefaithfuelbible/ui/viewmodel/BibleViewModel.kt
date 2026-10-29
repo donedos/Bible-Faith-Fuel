@@ -30,6 +30,7 @@ data class BibleUiState(
     val selectedDrawerTab: String = "reader", // "reader", "bookmarks", "notes", "settings"
     val editingBookmark: BookmarkRecord? = null,
     val isOldTestament: Boolean = true,
+    val hasShownSplash: Boolean = false,
     val books: List<BookRecord> = emptyList(),
     val selectedBook: BookRecord? = null,
     val chapters: List<Int> = emptyList(),
@@ -88,6 +89,10 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 selectedFontOption = fontOption
             )
         }
+    }
+
+    fun markSplashShown() {
+        _uiState.update { it.copy(hasShownSplash = true) }
     }
 
     fun updateFontOption(option: AppFontOption) {
