@@ -280,14 +280,18 @@ fun BibleScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    TextButton(onClick = { viewModel.cycleFontSize() }) {
-                                        Text("AA", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                    IconButton(onClick = { viewModel.cycleFontSize() }) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.ic_fontsize),
+                                            contentDescription = "Font Size",
+                                            modifier = Modifier.size(38.dp)
+                                        )
                                     }
                                     IconButton(onClick = { showSearchField = !showSearchField }) {
                                         Image(
                                             painter = painterResource(id = R.drawable.ic_search),
                                             contentDescription = "Search",
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(38.dp)
                                         )
                                     }
                                 }
