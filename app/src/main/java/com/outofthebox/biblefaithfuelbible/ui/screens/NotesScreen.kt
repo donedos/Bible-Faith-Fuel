@@ -238,13 +238,6 @@ fun NoteCard(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
-
-            Button(
-                onClick = { onReadVerse(note.reference) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("📖 Read Verse in Chapter")
-            }
         }
     }
 }
