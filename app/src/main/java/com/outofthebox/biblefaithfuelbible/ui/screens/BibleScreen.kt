@@ -1,5 +1,6 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -52,7 +53,30 @@ fun BibleScreen(
     val readerListState = rememberLazyListState()
 
     var showSearchField by remember { mutableStateOf(false) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
+
+    val isAtRoot = uiState.selectedDrawerTab == "reader" &&
+            uiState.selectedBook == null &&
+            uiState.searchQuery.isBlank() &&
+            !showSearchField &&
+            !drawerState.isOpen
+
+    // Hierarchical System Back Button / Gesture Handler
+    BackHandler(enabled = !isAtRoot) {
+        if (drawerState.isOpen) {
+            coroutineScope.launch { drawerState.close() }
+        } else if (uiState.searchQuery.isNotBlank() || showSearchField) {
+            viewModel.updateSearchQuery("")
+            showSearchField = false
+        } else if (uiState.selectedDrawerTab != "reader") {
+            viewModel.selectDrawerTab("reader")
+        } else if (uiState.isPickingVerse) {
+            viewModel.goBackToChapters()
+        } else if (uiState.selectedChapter != null) {
+            viewModel.goBackToChapters()
+        } else if (uiState.selectedBook != null) {
+            viewModel.goBackToBooks()
+        }
+    }
 
     // Scroll selected verse to top ONLY when explicitly requested (e.g. from Verse Picker)
     LaunchedEffect(uiState.selectedVerseNum, uiState.selectedChapter, uiState.shouldScrollToVerse) {
@@ -510,17 +534,25 @@ fun BibleScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .pointerInput(uiState.selectedBook?.id to uiState.selectedChapter) {
+                                                var swipeTotal = 0f
                                                 detectHorizontalDragGestures(
+                                                    onDragStart = {
+                                                        swipeTotal = 0f
+                                                    },
                                                     onDragEnd = {
-                                                        if (offsetX < -80f) {
+                                                        if (swipeTotal < -60f) {
                                                             viewModel.nextChapter()
-                                                        } else if (offsetX > 80f) {
+                                                        } else if (swipeTotal > 60f) {
                                                             viewModel.previousChapter()
                                                         }
-                                                        offsetX = 0f
+                                                        swipeTotal = 0f
                                                     },
-                                                    onHorizontalDrag = { _, dragAmount ->
-                                                        offsetX += dragAmount
+                                                    onDragCancel = {
+                                                        swipeTotal = 0f
+                                                    },
+                                                    onHorizontalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        swipeTotal += dragAmount
                                                     }
                                                 )
                                             },
@@ -561,7 +593,7 @@ fun BibleScreen(
                                                 shape = RoundedCornerShape(8.dp),
                                                 color = if (isHighlighted)
                                                     MaterialTheme.colorScheme.primaryContainer
-                                                else if (highlightColor != Color.Transparent)
+                                                else if (hasHighlight)
                                                     highlightColor
                                                 else
                                                     Color.Transparent,
@@ -605,7 +637,7 @@ fun BibleScreen(
                                                 val verseObj = uiState.chapterVerses.find { v -> v.verse == vNum }
                                                 if (verseObj != null) {
                                                     val ref = "${verseObj.bookId} ${verseObj.chapter}:${verseObj.verse}"
-                                                    var cardNoteInput by remember { mutableStateOf("") }
+                                                    var noteInput by remember(ref) { mutableStateOf("") }
 
                                                     Card(
                                                         modifier = Modifier
@@ -663,16 +695,16 @@ fun BibleScreen(
                                                             }
 
                                                             OutlinedTextField(
-                                                                value = cardNoteInput,
-                                                                onValueChange = { cardNoteInput = it },
+                                                                value = noteInput,
+                                                                onValueChange = { noteInput = it },
                                                                 label = { Text("Add personal note for $ref") },
                                                                 modifier = Modifier.fillMaxWidth()
                                                             )
                                                             Button(
                                                                 onClick = {
-                                                                    if (cardNoteInput.isNotBlank()) {
-                                                                        viewModel.addNote(ref, cardNoteInput)
-                                                                        cardNoteInput = ""
+                                                                    if (noteInput.isNotBlank()) {
+                                                                        viewModel.addNote(ref, noteInput)
+                                                                        noteInput = ""
                                                                     }
                                                                 }
                                                             ) {
@@ -808,7 +840,7 @@ fun BibleScreen(
                                     .background(parseColor)
                                     .border(
                                         width = if (isSelected) 3.dp else 0.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         shape = CircleShape
                                     )
                                     .clickable {
