@@ -1,0 +1,6 @@
+- `[ ]` Add Room and KSP dependencies in build scripts
+- `[ ]` Create Room Entities and DAOs for offline Bibles, notes, bookmarks, and highlights (scrollmapper schema structure)
+- `[ ]` Create Room Database singleton (`BibleDatabase`)
+- `[ ]` Update `BibleRepository` to integrate Room local storage and Ktor remote API
+- `[ ]` Update `BibleViewModel` and `BibleScreen` to support offline storage and online NIV fetching
+- `[ ]` Verify build and test integration
