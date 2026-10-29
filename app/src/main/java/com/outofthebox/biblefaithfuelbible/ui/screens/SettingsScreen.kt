@@ -61,7 +61,7 @@ fun SettingsScreen(
             }
 
             TextButton(onClick = { viewModel.selectDrawerTab("reader") }) {
-                Text("← Bible Reader")
+                Text("← Reader")
             }
         }
 
