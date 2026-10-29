@@ -349,21 +349,50 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun openChapterDirectly(chapter: Int) {
+        val book = _uiState.value.selectedBook ?: return
+        viewModelScope.launch {
+            val verses = repository.getVersesForChapter(book.id, chapter)
+            _uiState.update {
+                it.copy(
+                    selectedChapter = chapter,
+                    chapterVerses = verses,
+                    isPickingVerse = false,
+                    selectedVerseNum = null,
+                    shouldScrollToVerse = false
+                )
+            }
+        }
+    }
+
     fun nextChapter() {
         val currentBook = _uiState.value.selectedBook ?: return
         val currentChapter = _uiState.value.selectedChapter ?: 1
         val maxChapter = _uiState.value.chapters.maxOrNull() ?: 1
 
         if (currentChapter < maxChapter) {
-            selectChapter(currentChapter + 1)
+            openChapterDirectly(currentChapter + 1)
         } else {
             // Move to next book if available
             val books = _uiState.value.books
             val currentIndex = books.indexOfFirst { it.id == currentBook.id }
             if (currentIndex in 0 until books.size - 1) {
                 val nextBook = books[currentIndex + 1]
-                selectBook(nextBook)
-                selectChapter(1)
+                viewModelScope.launch {
+                    val nextChapters = repository.getChapters(nextBook.id)
+                    val verses = repository.getVersesForChapter(nextBook.id, 1)
+                    _uiState.update {
+                        it.copy(
+                            selectedBook = nextBook,
+                            chapters = nextChapters,
+                            selectedChapter = 1,
+                            chapterVerses = verses,
+                            isPickingVerse = false,
+                            selectedVerseNum = null,
+                            shouldScrollToVerse = false
+                        )
+                    }
+                }
             }
         }
     }
@@ -373,7 +402,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         val currentChapter = _uiState.value.selectedChapter ?: 1
 
         if (currentChapter > 1) {
-            selectChapter(currentChapter - 1)
+            openChapterDirectly(currentChapter - 1)
         } else {
             // Move to previous book's last chapter
             val books = _uiState.value.books
@@ -383,15 +412,18 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     val prevChapters = repository.getChapters(prevBook.id)
                     val lastChapter = prevChapters.maxOrNull() ?: 1
+                    val verses = repository.getVersesForChapter(prevBook.id, lastChapter)
                     _uiState.update {
                         it.copy(
                             selectedBook = prevBook,
                             chapters = prevChapters,
-                            selectedChapter = lastChapter
+                            selectedChapter = lastChapter,
+                            chapterVerses = verses,
+                            isPickingVerse = false,
+                            selectedVerseNum = null,
+                            shouldScrollToVerse = false
                         )
                     }
-                    val verses = repository.getVersesForChapter(prevBook.id, lastChapter)
-                    _uiState.update { it.copy(chapterVerses = verses, selectedVerseNum = null, isPickingVerse = true, shouldScrollToVerse = false) }
                 }
             }
         }

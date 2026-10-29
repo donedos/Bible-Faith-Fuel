@@ -721,7 +721,7 @@ fun BibleScreen(
                         }
 
                         // Floating Bottom Book Page Turning Navigation Arrows (< >)
-                        if (uiState.selectedDrawerTab == "reader" && uiState.selectedBook != null && uiState.selectedChapter != null) {
+                        if (uiState.selectedDrawerTab == "reader" && uiState.selectedBook != null && uiState.selectedChapter != null && !uiState.isPickingVerse) {
                             Row(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
