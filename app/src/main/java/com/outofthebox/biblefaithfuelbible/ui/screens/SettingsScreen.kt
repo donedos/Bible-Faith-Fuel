@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.outofthebox.biblefaithfuelbible.ui.theme.AppFontOption
 import com.outofthebox.biblefaithfuelbible.ui.theme.IosAccentColor
+import com.outofthebox.biblefaithfuelbible.ui.theme.PageTurnAnimation
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,14 +55,10 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    text = "⚙️ Settings",
+                    text = "Settings",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-            }
-
-            TextButton(onClick = { viewModel.selectDrawerTab("reader") }) {
-                Text("← Reader")
             }
         }
 
@@ -173,7 +170,74 @@ fun SettingsScreen(
                 }
             }
 
-            // Card 2: Reader Typography & Font Family
+            // Card 2: Page Turn Animation
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "📄 Page Turn Animation",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Text(
+                        text = "Choose how the reader moves between chapters.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    var pageTurnExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = pageTurnExpanded,
+                        onExpandedChange = { pageTurnExpanded = !pageTurnExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = uiState.pageTurnAnimation.displayName,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pageTurnExpanded) },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = pageTurnExpanded,
+                            onDismissRequest = { pageTurnExpanded = false }
+                        ) {
+                            PageTurnAnimation.entries.forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = option.displayName,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                text = option.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        viewModel.updatePageTurnAnimation(option)
+                                        pageTurnExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Card 3: Reader Typography & Font Family
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -282,7 +346,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Card 3: Bible Translation
+            // Card 4: Bible Translation
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -304,7 +368,11 @@ fun SettingsScreen(
                         onExpandedChange = { translationExpanded = !translationExpanded }
                     ) {
                         OutlinedTextField(
-                            value = if (uiState.selectedTranslation == "BSB") "BSB (Berean Standard Bible)" else "ASV (American Standard Version)",
+                            value = when (uiState.selectedTranslation.uppercase()) {
+                                "BSB" -> "BSB (Berean Standard Bible)"
+                                "KJV" -> "KJV (King James Version)"
+                                else -> "ASV (American Standard Version)"
+                            },
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = translationExpanded) },
@@ -328,6 +396,13 @@ fun SettingsScreen(
                                 text = { Text("ASV (American Standard Version)") },
                                 onClick = {
                                     viewModel.updateTranslation("ASV")
+                                    translationExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("KJV (King James Version)") },
+                                onClick = {
+                                    viewModel.updateTranslation("KJV")
                                     translationExpanded = false
                                 }
                             )

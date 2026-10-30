@@ -13,7 +13,10 @@ enum class AppFontOption(val displayName: String) {
     DEFAULT("Default System"),
     INTER("Inter"),
     LIBRE_BASKERVILLE("Libre Baskerville"),
-    LORA("Lora");
+    LORA("Lora"),
+    EB_GARAMOND("EB Garamond"),
+    GENTIUM_BOOK_PLUS("Gentium Book Plus"),
+    ROBOTO_FLEX("Roboto Flex");
 
     fun toFontFamily(): FontFamily {
         return when (this) {
@@ -32,6 +35,21 @@ enum class AppFontOption(val displayName: String) {
                 Font(R.font.lora_regular, FontWeight.Normal),
                 Font(R.font.lora_bold, FontWeight.Bold),
                 Font(R.font.lora_italic, FontWeight.Normal, FontStyle.Italic)
+            )
+            EB_GARAMOND -> FontFamily(
+                Font(R.font.eb_garamond_regular, FontWeight.Normal),
+                Font(R.font.eb_garamond_bold, FontWeight.Bold),
+                Font(R.font.eb_garamond_italic, FontWeight.Normal, FontStyle.Italic),
+                Font(R.font.eb_garamond_bold_italic, FontWeight.Bold, FontStyle.Italic)
+            )
+            GENTIUM_BOOK_PLUS -> FontFamily(
+                Font(R.font.gentium_book_plus_regular, FontWeight.Normal),
+                Font(R.font.gentium_book_plus_bold, FontWeight.Bold),
+                Font(R.font.gentium_book_plus_italic, FontWeight.Normal, FontStyle.Italic),
+                Font(R.font.gentium_book_plus_bold_italic, FontWeight.Bold, FontStyle.Italic)
+            )
+            ROBOTO_FLEX -> FontFamily(
+                Font(R.font.roboto_flex_variable, FontWeight.Normal)
             )
         }
     }

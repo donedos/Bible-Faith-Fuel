@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.io.File
 import java.io.FileOutputStream
 
 data class BookRecord(val id: Int, val name: String)
@@ -21,6 +22,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         private const val TABLE_NOTES = "notes"
         private const val TABLE_BOOKMARKS = "bookmarks"
         private const val TABLE_HIGHLIGHTS = "highlights"
+        private const val BASE_TEXT_MARKER = "basetext.marker"
 
         val TOPIC_SUGGESTIONS = listOf(
             "Genesis 1:1", "Genesis 1:3", "John 3:16", "Psalm 23:1", "1 Corinthians 1:3",
@@ -108,13 +110,30 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         }
     }
 
+    @Volatile
+    private var cachedTablePrefix: String? = null
+
+    @Volatile
+    private var cachedLastUpdateTime: Long = -1L
+
     init {
         copyBaseTextFromAssetsIfMissing("bsb.db")
     }
 
     fun setTranslation(translation: String) {
-        val assetName = if (translation.uppercase() == "ASV") "asv.db" else "bsb.db"
+        val assetName = when (translation.uppercase()) {
+            "ASV" -> "asv.db"
+            "KJV" -> "kjv.db"
+            else -> "bsb.db"
+        }
         val baseFile = context.getDatabasePath("basetext.db")
+        val db = writableDatabase
+        if (isBaseTextCurrent(assetName)) {
+            attachBaseTextDb(db)
+            cachedTablePrefix = null
+            ensureIndexesExist(db)
+            return
+        }
         try {
             baseFile.parentFile?.mkdirs()
             context.assets.open(assetName).use { input ->
@@ -122,7 +141,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
                     input.copyTo(output)
                 }
             }
-            val db = writableDatabase
+            writeBaseTextMarker(assetName)
             try {
                 db.execSQL("DETACH DATABASE basetext")
             } catch (e: Exception) {}
@@ -130,9 +149,12 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         } catch (e: Exception) {
             // Ignore
         }
+        cachedTablePrefix = null
+        ensureIndexesExist(db)
     }
 
     private fun copyBaseTextFromAssetsIfMissing(assetName: String = "bsb.db") {
+        if (isBaseTextCurrent(assetName)) return
         val baseFile = context.getDatabasePath("basetext.db")
         if (!baseFile.exists()) {
             try {
@@ -142,21 +164,57 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
                         input.copyTo(output)
                     }
                 }
+                writeBaseTextMarker(assetName)
             } catch (e: Exception) {
                 // Ignore
             }
         }
     }
 
+    private fun markerValue(assetName: String): String {
+        if (cachedLastUpdateTime == -1L) {
+            cachedLastUpdateTime = try {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+            } catch (e: Exception) {
+                0L
+            }
+        }
+        return "$assetName:$cachedLastUpdateTime"
+    }
+
+    private fun isBaseTextCurrent(assetName: String): Boolean {
+        val baseFile = context.getDatabasePath("basetext.db")
+        if (!baseFile.exists() || baseFile.length() == 0L) return false
+        val marker = File(baseFile.parentFile, BASE_TEXT_MARKER)
+        if (!marker.exists()) return false
+        return try {
+            marker.readText().trim() == markerValue(assetName)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun writeBaseTextMarker(assetName: String) {
+        try {
+            val baseFile = context.getDatabasePath("basetext.db")
+            File(baseFile.parentFile, BASE_TEXT_MARKER).writeText(markerValue(assetName))
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         createUserTables(db)
         attachBaseTextDb(db)
+        ensureIndexesExist(db)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
         super.onOpen(db)
         createUserTables(db)
         attachBaseTextDb(db)
+        ensureIndexesExist(db)
     }
 
     private fun attachBaseTextDb(db: SQLiteDatabase) {
@@ -167,6 +225,25 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
             } catch (e: Exception) {
                 // Already attached
             }
+        }
+    }
+
+    private fun ensureIndexesExist(db: SQLiteDatabase) {
+        val prefix = getTablePrefix()
+        try {
+            db.execSQL("CREATE INDEX IF NOT EXISTS basetext.idx_${prefix}_verses_bcv ON ${prefix}_verses(book_id, chapter, verse)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS basetext.idx_${prefix}_verses_bc ON ${prefix}_verses(book_id, chapter)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS basetext.idx_${prefix}_books_name ON ${prefix}_books(name)")
+        } catch (e: Exception) {
+            // Ignore if basetext is attached read-only
+        }
+        try {
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_ref ON $TABLE_NOTES(reference)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notes_ts ON $TABLE_NOTES(timestamp)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_bookmarks_ts ON $TABLE_BOOKMARKS(timestamp)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_highlights_ref ON $TABLE_HIGHLIGHTS(reference)")
+        } catch (e: Exception) {
+            // Ignore
         }
     }
 
@@ -210,20 +287,22 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
     }
 
     private fun getTablePrefix(): String {
-        return try {
+        cachedTablePrefix?.let { return it }
+        val prefix = try {
             val db = readableDatabase
             val c = db.rawQuery("SELECT name FROM basetext.sqlite_master WHERE type='table' AND name LIKE '%_books'", null)
-            var prefix = "BSB"
+            var value = "BSB"
             c.use {
                 if (it.moveToFirst()) {
-                    val tableName = it.getString(0)
-                    prefix = tableName.substringBefore("_books")
+                    value = it.getString(0).substringBefore("_books")
                 }
             }
-            prefix
+            value
         } catch (e: Exception) {
             "BSB"
         }
+        cachedTablePrefix = prefix
+        return prefix
     }
 
     // Books navigation
@@ -263,7 +342,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         val db = readableDatabase
         val prefix = getTablePrefix()
         val cursor = db.rawQuery(
-            "SELECT b.name, v.chapter, v.verse, v.text FROM basetext.${prefix}_verses v JOIN basetext.${prefix}_books b ON v.book_id = b.id WHERE v.book_id = ? AND v.chapter = ? GROUP BY v.verse ORDER BY v.verse ASC",
+            "SELECT b.name, v.chapter, v.verse, v.text FROM basetext.${prefix}_verses v JOIN basetext.${prefix}_books b ON v.book_id = b.id WHERE v.book_id = ? AND v.chapter = ? ORDER BY v.verse ASC",
             arrayOf(bookId.toString(), chapter.toString())
         )
         cursor.use {
@@ -271,7 +350,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
                 list.add(VerseRecord(it.getString(0), it.getInt(1), it.getInt(2), it.getString(3).trim(), prefix))
             }
         }
-        return list.distinctBy { it.verse }
+        return list
     }
 
     fun getVersesByReferences(referencesStr: String): List<VerseRecord> {
@@ -282,6 +361,27 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
             results.addAll(verses)
         }
         return results.distinctBy { "${it.bookId}_${it.chapter}_${it.verse}" }
+    }
+
+    fun getRandomVerse(bookName: String? = null): VerseRecord? {
+        val db = readableDatabase
+        val prefix = getTablePrefix()
+        val query: String
+        val args: Array<String>?
+        if (bookName.isNullOrBlank() || bookName.equals("All Books", ignoreCase = true)) {
+            query = "SELECT b.name, v.chapter, v.verse, v.text FROM basetext.${prefix}_verses v JOIN basetext.${prefix}_books b ON v.book_id = b.id ORDER BY RANDOM() LIMIT 1"
+            args = null
+        } else {
+            query = "SELECT b.name, v.chapter, v.verse, v.text FROM basetext.${prefix}_verses v JOIN basetext.${prefix}_books b ON v.book_id = b.id WHERE LOWER(b.name) = LOWER(?) ORDER BY RANDOM() LIMIT 1"
+            args = arrayOf(bookName.trim())
+        }
+        val cursor = db.rawQuery(query, args)
+        cursor.use {
+            if (it.moveToNext()) {
+                return VerseRecord(it.getString(0), it.getInt(1), it.getInt(2), it.getString(3).trim(), prefix)
+            }
+        }
+        return null
     }
 
     // Notes
@@ -316,6 +416,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         val db = writableDatabase
         val values = ContentValues().apply {
             put("content", content)
+            put("timestamp", System.currentTimeMillis())
         }
         db.update(TABLE_NOTES, values, "id = ?", arrayOf(id.toString()))
     }
@@ -354,6 +455,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         val db = writableDatabase
         val values = ContentValues().apply {
             put("label", newLabel)
+            put("timestamp", System.currentTimeMillis())
         }
         db.update(TABLE_BOOKMARKS, values, "reference = ?", arrayOf(referenceKey))
     }
@@ -361,6 +463,66 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
     fun deleteBookmark(referenceKey: String) {
         val db = writableDatabase
         db.delete(TABLE_BOOKMARKS, "reference = ?", arrayOf(referenceKey))
+    }
+
+    fun removeVerseFromBookmark(bookmarkKey: String, verseRefToRemove: String) {
+        removeVersesFromBookmark(bookmarkKey, setOf(verseRefToRemove))
+    }
+
+    fun removeVersesFromBookmark(bookmarkKey: String, verseRefsToRemove: Set<String>) {
+        val db = writableDatabase
+        val cursor = db.rawQuery("SELECT reference, label, color FROM $TABLE_BOOKMARKS WHERE reference = ?", arrayOf(bookmarkKey))
+        cursor.use {
+            if (it.moveToFirst()) {
+                val currentRef = cursor.getString(0)
+                val label = if (!cursor.isNull(1)) cursor.getString(1) else currentRef
+                val color = if (!cursor.isNull(2)) cursor.getString(2) else "#FFD700"
+
+                val verses = getVersesByReferences(currentRef)
+                val remainingVerses = verses.filter { v ->
+                    val vRef = "${v.bookId} ${v.chapter}:${v.verse}"
+                    !verseRefsToRemove.any { rem -> rem.equals(vRef.trim(), ignoreCase = true) }
+                }
+
+                db.delete(TABLE_BOOKMARKS, "reference = ?", arrayOf(bookmarkKey))
+
+                if (remainingVerses.isNotEmpty()) {
+                    val newRef = formatVersesReference(remainingVerses)
+                    val values = ContentValues().apply {
+                        put("reference", newRef)
+                        put("label", if (label == currentRef) newRef else label)
+                        put("color", color)
+                        put("timestamp", System.currentTimeMillis())
+                    }
+                    db.insertWithOnConflict(TABLE_BOOKMARKS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                }
+            }
+        }
+    }
+
+    private fun formatVersesReference(verses: List<VerseRecord>): String {
+        if (verses.isEmpty()) return ""
+        val grouped = verses.groupBy { "${it.bookId} ${it.chapter}" }
+        val parts = mutableListOf<String>()
+        for ((bookChapter, vList) in grouped) {
+            val sortedNums = vList.map { it.verse }.sorted()
+            val ranges = mutableListOf<String>()
+            var start = sortedNums.first()
+            var prev = start
+            for (i in 1 until sortedNums.size) {
+                val curr = sortedNums[i]
+                if (curr == prev + 1) {
+                    prev = curr
+                } else {
+                    if (start == prev) ranges.add("$start") else ranges.add("$start-$prev")
+                    start = curr
+                    prev = curr
+                }
+            }
+            if (start == prev) ranges.add("$start") else ranges.add("$start-$prev")
+            parts.add("$bookChapter:${ranges.joinToString(", ")}")
+        }
+        return parts.joinToString(", ")
     }
 
     fun toggleBookmark(reference: String, isBookmarked: Boolean) {
@@ -397,12 +559,16 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
     // Highlights
     fun saveHighlight(reference: String, color: String) {
         val db = writableDatabase
-        val values = ContentValues().apply {
-            put("reference", reference)
-            put("color", color)
-            put("timestamp", System.currentTimeMillis())
+        if (color.isBlank()) {
+            db.delete(TABLE_HIGHLIGHTS, "reference = ?", arrayOf(reference))
+        } else {
+            val values = ContentValues().apply {
+                put("reference", reference)
+                put("color", color)
+                put("timestamp", System.currentTimeMillis())
+            }
+            db.insertWithOnConflict(TABLE_HIGHLIGHTS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
         }
-        db.insertWithOnConflict(TABLE_HIGHLIGHTS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun getHighlights(): List<HighlightRecord> {
@@ -446,6 +612,26 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         return suggestions.distinct().take(10)
     }
 
+    private fun fetchVerseRange(bookName: String, chapter: Int, startVerse: Int, endVerse: Int): List<VerseRecord> {
+        val list = mutableListOf<VerseRecord>()
+        val db = readableDatabase
+        val prefix = getTablePrefix()
+        val sql = """
+            SELECT b.name, v.chapter, v.verse, v.text 
+            FROM basetext.${prefix}_verses v 
+            JOIN basetext.${prefix}_books b ON v.book_id = b.id 
+            WHERE (b.name LIKE ? OR b.name = ?) AND v.chapter = ? AND v.verse BETWEEN ? AND ?
+            ORDER BY v.verse ASC
+        """
+        val cursor = db.rawQuery(sql, arrayOf("%$bookName%", bookName, chapter.toString(), startVerse.toString(), endVerse.toString()))
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(VerseRecord(it.getString(0), it.getInt(1), it.getInt(2), it.getString(3).trim(), prefix))
+            }
+        }
+        return list
+    }
+
     // Search Verses
     fun searchVersesEnhanced(query: String, version: String = "BSB"): List<VerseRecord> {
         val trimmedQuery = query.trim()
@@ -454,6 +640,28 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         val db = readableDatabase
         val prefix = getTablePrefix()
         val list = mutableListOf<VerseRecord>()
+
+        val rangeRegex = Regex("^([1-3]?\\s*[a-zA-Z]+)\\s+(\\d+):(\\d+)\\s*(?:-|–)\\s*(\\d+)$", RegexOption.IGNORE_CASE)
+        val rangeMatch = rangeRegex.find(trimmedQuery)
+        if (rangeMatch != null) {
+            val rawBook = rangeMatch.groupValues[1]
+            val chapterStr = rangeMatch.groupValues[2]
+            val startVerseStr = rangeMatch.groupValues[3]
+            val endVerseStr = rangeMatch.groupValues[4]
+
+            val bookName = resolveBookName(rawBook)
+            val chapterNum = chapterStr.toIntOrNull()
+            val startV = startVerseStr.toIntOrNull()
+            val endV = endVerseStr.toIntOrNull()
+
+            if (chapterNum != null && startV != null && endV != null) {
+                try {
+                    return fetchVerseRange(bookName, chapterNum, startV, endV)
+                } catch (e: Exception) {
+                    // fallthrough
+                }
+            }
+        }
 
         val refRegex = Regex("^([1-3]?\\s*[a-zA-Z]+)\\s+(\\d+)(?:[:\\s]+(\\d+))?$", RegexOption.IGNORE_CASE)
         val match = refRegex.find(trimmedQuery)

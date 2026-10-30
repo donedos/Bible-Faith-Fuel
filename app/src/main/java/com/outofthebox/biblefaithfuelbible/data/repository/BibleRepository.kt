@@ -1,84 +1,98 @@
 package com.outofthebox.biblefaithfuelbible.data.repository
 
+import android.util.LruCache
 import com.outofthebox.biblefaithfuelbible.data.local.BibleDatabaseHelper
 import com.outofthebox.biblefaithfuelbible.data.local.BookRecord
 import com.outofthebox.biblefaithfuelbible.data.local.BookmarkRecord
 import com.outofthebox.biblefaithfuelbible.data.local.HighlightRecord
 import com.outofthebox.biblefaithfuelbible.data.local.NoteRecord
 import com.outofthebox.biblefaithfuelbible.data.local.VerseRecord
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class BibleRepository(
     private val dbHelper: BibleDatabaseHelper
 ) {
-    fun getBooks(isOldTestament: Boolean): List<BookRecord> {
-        return dbHelper.getBooks(isOldTestament)
+    private val searchCache = LruCache<String, List<VerseRecord>>(100)
+    private val suggestionCache = LruCache<String, List<String>>(100)
+
+    fun clearSearchCache() {
+        searchCache.evictAll()
+        suggestionCache.evictAll()
     }
 
-    fun getChapters(bookId: Int): List<Int> {
-        return dbHelper.getChaptersForBook(bookId)
-    }
+    suspend fun getBooks(isOldTestament: Boolean): List<BookRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getBooks(isOldTestament) }
 
-    fun getVersesForChapter(bookId: Int, chapter: Int): List<VerseRecord> {
-        return dbHelper.getVersesForChapter(bookId, chapter)
-    }
+    suspend fun getChapters(bookId: Int): List<Int> =
+        withContext(Dispatchers.IO) { dbHelper.getChaptersForBook(bookId) }
 
-    fun getVersesByReferences(referencesStr: String): List<VerseRecord> {
-        return dbHelper.getVersesByReferences(referencesStr)
-    }
+    suspend fun getVersesForChapter(bookId: Int, chapter: Int): List<VerseRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getVersesForChapter(bookId, chapter) }
 
-    fun searchOfflineVerses(query: String, version: String = "ASV"): List<VerseRecord> {
-        return dbHelper.searchVersesEnhanced(query, version)
-    }
+    suspend fun getVersesByReferences(referencesStr: String): List<VerseRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getVersesByReferences(referencesStr) }
 
-    fun getSearchSuggestions(query: String): List<String> {
-        return dbHelper.getSuggestions(query)
-    }
+    suspend fun getRandomVerse(bookName: String? = null): VerseRecord? =
+        withContext(Dispatchers.IO) { dbHelper.getRandomVerse(bookName) }
 
-    fun getNotes(): List<NoteRecord> {
-        return dbHelper.getNotes()
-    }
+    suspend fun searchOfflineVerses(query: String, version: String = "BSB"): List<VerseRecord> =
+        withContext(Dispatchers.IO) {
+            val key = "$version:${query.trim().lowercase()}"
+            searchCache.get(key)?.let { return@withContext it }
+            val results = dbHelper.searchVersesEnhanced(query, version)
+            searchCache.put(key, results)
+            results
+        }
 
-    fun saveNote(reference: String, content: String) {
-        dbHelper.insertNote(reference, content)
-    }
+    suspend fun getSearchSuggestions(query: String): List<String> =
+        withContext(Dispatchers.IO) {
+            val key = query.trim().lowercase()
+            suggestionCache.get(key)?.let { return@withContext it }
+            val suggestions = dbHelper.getSuggestions(query)
+            suggestionCache.put(key, suggestions)
+            suggestions
+        }
 
-    fun deleteNote(id: Long) {
-        dbHelper.deleteNote(id)
-    }
+    suspend fun getNotes(): List<NoteRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getNotes() }
 
-    fun updateNote(id: Long, content: String) {
-        dbHelper.updateNote(id, content)
-    }
+    suspend fun saveNote(reference: String, content: String) =
+        withContext(Dispatchers.IO) { dbHelper.insertNote(reference, content) }
 
-    fun getBookmarks(): List<BookmarkRecord> {
-        return dbHelper.getBookmarks()
-    }
+    suspend fun deleteNote(id: Long) =
+        withContext(Dispatchers.IO) { dbHelper.deleteNote(id) }
 
-    fun toggleBookmark(reference: String, isBookmarked: Boolean) {
-        dbHelper.toggleBookmark(reference, isBookmarked)
-    }
+    suspend fun updateNote(id: Long, content: String) =
+        withContext(Dispatchers.IO) { dbHelper.updateNote(id, content) }
 
-    fun saveCustomBookmark(reference: String, label: String, color: String) {
-        dbHelper.saveCustomBookmark(reference, label, color)
-    }
+    suspend fun getBookmarks(): List<BookmarkRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getBookmarks() }
 
-    fun appendVerseToBookmark(bookmarkKey: String, newVerseRef: String) {
-        dbHelper.appendVerseToBookmark(bookmarkKey, newVerseRef)
-    }
+    suspend fun toggleBookmark(reference: String, isBookmarked: Boolean) =
+        withContext(Dispatchers.IO) { dbHelper.toggleBookmark(reference, isBookmarked) }
 
-    fun renameBookmark(referenceKey: String, newLabel: String) {
-        dbHelper.renameBookmark(referenceKey, newLabel)
-    }
+    suspend fun saveCustomBookmark(reference: String, label: String, color: String) =
+        withContext(Dispatchers.IO) { dbHelper.saveCustomBookmark(reference, label, color) }
 
-    fun deleteBookmark(referenceKey: String) {
-        dbHelper.deleteBookmark(referenceKey)
-    }
+    suspend fun appendVerseToBookmark(bookmarkKey: String, newVerseRef: String) =
+        withContext(Dispatchers.IO) { dbHelper.appendVerseToBookmark(bookmarkKey, newVerseRef) }
 
-    fun getHighlights(): List<HighlightRecord> {
-        return dbHelper.getHighlights()
-    }
+    suspend fun renameBookmark(referenceKey: String, newLabel: String) =
+        withContext(Dispatchers.IO) { dbHelper.renameBookmark(referenceKey, newLabel) }
 
-    fun saveHighlight(reference: String, color: String) {
-        dbHelper.saveHighlight(reference, color)
-    }
+    suspend fun deleteBookmark(referenceKey: String) =
+        withContext(Dispatchers.IO) { dbHelper.deleteBookmark(referenceKey) }
+
+    suspend fun removeVerseFromBookmark(bookmarkKey: String, verseRefToRemove: String) =
+        withContext(Dispatchers.IO) { dbHelper.removeVerseFromBookmark(bookmarkKey, verseRefToRemove) }
+
+    suspend fun removeVersesFromBookmark(bookmarkKey: String, verseRefsToRemove: Set<String>) =
+        withContext(Dispatchers.IO) { dbHelper.removeVersesFromBookmark(bookmarkKey, verseRefsToRemove) }
+
+    suspend fun getHighlights(): List<HighlightRecord> =
+        withContext(Dispatchers.IO) { dbHelper.getHighlights() }
+
+    suspend fun saveHighlight(reference: String, color: String) =
+        withContext(Dispatchers.IO) { dbHelper.saveHighlight(reference, color) }
 }

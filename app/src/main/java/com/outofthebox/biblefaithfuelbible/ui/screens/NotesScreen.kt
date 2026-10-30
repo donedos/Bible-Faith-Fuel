@@ -1,5 +1,6 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,11 +12,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.outofthebox.biblefaithfuelbible.R
 import com.outofthebox.biblefaithfuelbible.data.local.NoteRecord
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,18 +30,25 @@ fun NotesScreen(
     onOpenDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showSearchField by remember { mutableStateOf(false) }
     var filterQuery by remember { mutableStateOf("") }
+    var isSortAscending by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<NoteRecord?>(null) }
     var selectedOptionsNote by remember { mutableStateOf<NoteRecord?>(null) }
 
-    val filteredNotes = remember(uiState.notes, filterQuery) {
-        if (filterQuery.isBlank()) {
+    val filteredNotes = remember(uiState.notes, filterQuery, isSortAscending) {
+        val baseList = if (filterQuery.isBlank()) {
             uiState.notes
         } else {
             uiState.notes.filter {
                 it.reference.contains(filterQuery, ignoreCase = true) ||
                         it.content.contains(filterQuery, ignoreCase = true)
             }
+        }
+        if (isSortAscending) {
+            baseList.sortedBy { it.timestamp }
+        } else {
+            baseList.sortedByDescending { it.timestamp }
         }
     }
 
@@ -45,7 +58,7 @@ fun NotesScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top Header Row
+        // Top Header Row with Search Toggle Icon
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -65,36 +78,63 @@ fun NotesScreen(
                 }
 
                 Text(
-                    text = "Notes",
+                    text = "Notes (${filteredNotes.size})",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                TextButton(
+                    onClick = { isSortAscending = !isSortAscending },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isSortAscending) "Oldest ⬆" else "Newest ⬇",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(onClick = { showSearchField = !showSearchField }) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_search),
+                        contentDescription = "Search Notes",
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
         }
 
-        // Search / Filter Input
-        OutlinedTextField(
-            value = filterQuery,
-            onValueChange = { filterQuery = it },
-            placeholder = { Text("Filter saved notes...", style = MaterialTheme.typography.bodyMedium) },
-            singleLine = true,
-            trailingIcon = {
-                if (filterQuery.isNotEmpty()) {
-                    IconButton(onClick = { filterQuery = "" }) {
-                        Text("✕", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Collapsible Search / Filter Input
+        if (showSearchField || filterQuery.isNotBlank()) {
+            OutlinedTextField(
+                value = filterQuery,
+                onValueChange = { filterQuery = it },
+                placeholder = { Text("Search notes...", style = MaterialTheme.typography.bodyMedium) },
+                singleLine = true,
+                trailingIcon = {
+                    if (filterQuery.isNotEmpty()) {
+                        IconButton(onClick = { filterQuery = "" }) {
+                            Text("✕", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.Transparent
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.Transparent
+                )
             )
-        )
+        }
 
         if (filteredNotes.isEmpty()) {
             Box(
@@ -263,6 +303,15 @@ fun NoteCard(
     onReadVerse: (String) -> Unit,
     onLongPress: (NoteRecord) -> Unit
 ) {
+    val formattedDate = remember(note.timestamp) {
+        if (note.timestamp > 0) {
+            val sdf = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
+            sdf.format(Date(note.timestamp))
+        } else {
+            ""
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -278,12 +327,26 @@ fun NoteCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = note.reference,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.titleMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = note.reference,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                if (formattedDate.isNotBlank()) {
+                    Text(
+                        text = formattedDate,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Text(
                 text = note.content,

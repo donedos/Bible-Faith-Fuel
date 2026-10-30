@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">BibleFaith Fuel Bible</string>
+    <string name="widget_label">Verse of the Day</string>
+    <string name="widget_description">A daily Bible verse on your home screen with quick refresh and read actions.</string>
 </resources>
