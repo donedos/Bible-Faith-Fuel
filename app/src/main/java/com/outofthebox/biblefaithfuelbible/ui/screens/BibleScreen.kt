@@ -1,7 +1,9 @@
 package com.outofthebox.biblefaithfuelbible.ui.screens
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -63,9 +65,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import com.outofthebox.biblefaithfuelbible.ui.viewmodel.BibleUiState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.outofthebox.biblefaithfuelbible.R
@@ -87,35 +92,52 @@ private data class ChapterPageState(
 fun FloatingSelectionBar(
     uiState: BibleUiState,
     viewModel: BibleViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLandscape: Boolean = false
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     var showColorPicker by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val allVerseNums = uiState.chapterVerses.map { it.verse }.toSet()
+    val isAllSelected = allVerseNums.isNotEmpty() && uiState.selectedVerseNums.containsAll(allVerseNums)
+
+    val highlightPresetColors = listOf(
+        "#FFF59D" to "Yellow",
+        "#A5D6A7" to "Green",
+        "#90CAF9" to "Blue",
+        "#F48FB1" to "Pink",
+        "#CE93D8" to "Purple",
+        "#FFCC80" to "Orange"
+    )
 
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         tonalElevation = 8.dp,
         shadowElevation = 8.dp,
-        modifier = modifier.fillMaxWidth()
+        modifier = if (isLandscape) {
+            modifier.width(135.dp)
+        } else {
+            modifier.fillMaxWidth()
+        }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Header: Selected Verse Count + Reference Label + Close (✕) Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        if (isLandscape) {
+            Column(
+                modifier = Modifier
+                    .wrapContentHeight()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Header: Selected Verse Count + Close (✕) Button
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         shape = CircleShape,
@@ -129,230 +151,463 @@ fun FloatingSelectionBar(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
-                    Text(
-                        text = viewModel.getSelectedVersesReference(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
 
-                IconButton(
-                    onClick = { viewModel.clearVerseSelection() },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close selection",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Highlight Preset Colors Row
-            if (showColorPicker) {
-                val highlightPresetColors = listOf(
-                    "#FFF59D" to "Yellow",
-                    "#A5D6A7" to "Green",
-                    "#90CAF9" to "Blue",
-                    "#F48FB1" to "Pink",
-                    "#CE93D8" to "Purple",
-                    "#FFCC80" to "Orange"
-                )
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    highlightPresetColors.forEach { (hex, _) ->
-                        val parseColor = Color(android.graphics.Color.parseColor(hex))
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(parseColor)
-                                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
-                                .clickable {
-                                    viewModel.saveHighlightForSelectedVerses(hex)
-                                    showColorPicker = false
-                                }
+                    IconButton(
+                        onClick = { viewModel.clearVerseSelection() },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close selection",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                    TextButton(
-                        onClick = {
-                            viewModel.saveHighlightForSelectedVerses("")
-                            showColorPicker = false
-                        }
+                }
+
+                Text(
+                    text = viewModel.getSelectedVersesReference(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                // Highlight Color Picker in Landscape
+                if (showColorPicker) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Clear", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                        highlightPresetColors.forEach { (hex, _) ->
+                            val parseColor = Color(android.graphics.Color.parseColor(hex))
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(parseColor)
+                                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
+                                    .clickable {
+                                        viewModel.saveHighlightForSelectedVerses(hex)
+                                        showColorPicker = false
+                                    }
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                viewModel.saveHighlightForSelectedVerses("")
+                                showColorPicker = false
+                            }
+                        ) {
+                            Text("Clear", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                }
+
+                // Vertical scrollable action items
+                VerticalActionItem(
+                    emoji = "📋",
+                    label = "Copy",
+                    onClick = {
+                        val refStr = viewModel.getSelectedVersesReference()
+                        val formattedText = viewModel.getSelectedVersesFormattedText()
+                        clipboardManager.setText(AnnotatedString(formattedText))
+                        Toast.makeText(context, "Copied $refStr to clipboard", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                VerticalActionItem(
+                    emoji = "🔖",
+                    label = "Bookmarks",
+                    onClick = {
+                        val refStr = viewModel.getSelectedVersesReference()
+                        viewModel.openBookmarkDialog(refStr)
+                    }
+                )
+
+                VerticalActionItem(
+                    icon = Icons.Default.Edit,
+                    label = "Notes",
+                    onClick = {
+                        val refStr = viewModel.getSelectedVersesReference()
+                        viewModel.openVerseActionDialog(refStr)
+                    }
+                )
+
+                VerticalActionItem(
+                    icon = Icons.Default.Share,
+                    label = "Share",
+                    onClick = {
+                        val formattedText = viewModel.getSelectedVersesFormattedText()
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, formattedText)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, "Share Bible Verses")
+                        context.startActivity(shareIntent)
+                    }
+                )
+
+                VerticalActionItem(
+                    emoji = "🎨",
+                    label = "Highlight",
+                    isActive = showColorPicker,
+                    onClick = {
+                        showColorPicker = !showColorPicker
+                        if (showColorPicker && isLandscape) {
+                            coroutineScope.launch {
+                                scrollState.animateScrollTo(0)
+                            }
+                        }
+                    }
+                )
+
+                VerticalActionItem(
+                    emoji = if (isAllSelected) "☒️" else "☑️",
+                    label = if (isAllSelected) "Deselect All" else "Select All",
+                    onClick = {
+                        viewModel.toggleSelectAllVerses()
+                    }
+                )
+
+                VerticalActionItem(
+                    emoji = if (uiState.isSpeaking) "⏹️" else "🔊",
+                    label = if (uiState.isSpeaking) "Stop" else "Listen",
+                    isActive = uiState.isSpeaking,
+                    onClick = {
+                        if (uiState.isSpeaking) {
+                            viewModel.stopSpeech()
+                        } else {
+                            viewModel.speakSelectedVerses()
+                        }
+                    }
+                )
+            }
+        } else {
+            // Horizontal layout for Portrait mode
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Header: Selected Verse Count + Reference Label + Close (✕) Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text(
+                                text = "${uiState.selectedVerseNums.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = viewModel.getSelectedVersesReference(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.clearVerseSelection() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close selection",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                // Highlight Preset Colors Row
+                if (showColorPicker) {
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        highlightPresetColors.forEach { (hex, _) ->
+                            val parseColor = Color(android.graphics.Color.parseColor(hex))
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(parseColor)
+                                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
+                                    .clickable {
+                                        viewModel.saveHighlightForSelectedVerses(hex)
+                                        showColorPicker = false
+                                    }
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                viewModel.saveHighlightForSelectedVerses("")
+                                showColorPicker = false
+                            }
+                        ) {
+                            Text("Clear", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                // Horizontal Action Icons: Copy, Bookmarks, Notes, Share, Highlight
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // 1. Copy
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val refStr = viewModel.getSelectedVersesReference()
+                                val formattedText = viewModel.getSelectedVersesFormattedText()
+                                clipboardManager.setText(AnnotatedString(formattedText))
+                                Toast.makeText(context, "Copied $refStr to clipboard", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("📋", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "Copy",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 2. Bookmarks
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val refStr = viewModel.getSelectedVersesReference()
+                                viewModel.openBookmarkDialog(refStr)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("🔖", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "Bookmarks",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 3. Notes
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val refStr = viewModel.getSelectedVersesReference()
+                                viewModel.openVerseActionDialog(refStr)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Notes",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Notes",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 4. Share
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val formattedText = viewModel.getSelectedVersesFormattedText()
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, formattedText)
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, "Share Bible Verses")
+                                context.startActivity(shareIntent)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Share",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 5. Highlight
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                showColorPicker = !showColorPicker
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("🎨", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "Highlight",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showColorPicker) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 6. Select All / Deselect All
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                viewModel.toggleSelectAllVerses()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(if (isAllSelected) "☒️" else "☑️", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = if (isAllSelected) "Deselect All" else "Select All",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 7. TTS / Listen
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                if (uiState.isSpeaking) {
+                                    viewModel.stopSpeech()
+                                } else {
+                                    viewModel.speakSelectedVerses()
+                                }
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(if (uiState.isSpeaking) "⏹️" else "🔊", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = if (uiState.isSpeaking) "Stop" else "Listen",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (uiState.isSpeaking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
+        }
+    }
+}
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+@Composable
+private fun VerticalActionItem(
+    label: String,
+    onClick: () -> Unit,
+    emoji: String? = null,
+    icon: ImageVector? = null,
+    isActive: Boolean = false
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp, horizontal = 2.dp)
+    ) {
+        if (emoji != null) {
+            Text(emoji, style = MaterialTheme.typography.titleMedium)
+        } else if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
 
-            // Horizontal Action Icons: Copy, Bookmarks, Notes, Share, Highlight
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // 1. Copy
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            val refStr = viewModel.getSelectedVersesReference()
-                            val formattedText = viewModel.getSelectedVersesFormattedText()
-                            clipboardManager.setText(AnnotatedString(formattedText))
-                            Toast.makeText(context, "Copied $refStr to clipboard", Toast.LENGTH_SHORT).show()
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text("📋", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Copy",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+@Composable
+fun highlightSearchQuery(text: String, query: String): AnnotatedString {
+    if (query.isBlank()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        val lowerText = text.lowercase()
+        val lowerQuery = query.lowercase().trim()
+        if (lowerQuery.isEmpty() || !lowerText.contains(lowerQuery)) {
+            append(text)
+        } else {
+            var startIndex = 0
+            while (true) {
+                val index = lowerText.indexOf(lowerQuery, startIndex)
+                if (index < 0) {
+                    append(text.substring(startIndex))
+                    break
                 }
-
-                // 2. Bookmarks
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            val refStr = viewModel.getSelectedVersesReference()
-                            viewModel.openBookmarkDialog(refStr)
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text("🔖", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Bookmarks",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (index > startIndex) {
+                    append(text.substring(startIndex, index))
                 }
-
-                // 3. Notes
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            val refStr = viewModel.getSelectedVersesReference()
-                            viewModel.openVerseActionDialog(refStr)
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                val matchEnd = index + lowerQuery.length
+                withStyle(
+                    style = SpanStyle(
+                        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Notes",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Notes",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    append(text.substring(index, matchEnd))
                 }
-
-                // 4. Share
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            val formattedText = viewModel.getSelectedVersesFormattedText()
-                            val sendIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, formattedText)
-                                type = "text/plain"
-                            }
-                            val shareIntent = Intent.createChooser(sendIntent, "Share Bible Verses")
-                            context.startActivity(shareIntent)
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Share",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 5. Highlight
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            showColorPicker = !showColorPicker
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text("🎨", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Highlight",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (showColorPicker) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 6. Select All
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            viewModel.selectAllVersesInChapter()
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text("☑️", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Select All",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 7. TTS / Listen
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            if (uiState.isSpeaking) {
-                                viewModel.stopSpeech()
-                            } else {
-                                viewModel.speakSelectedVerses()
-                            }
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(if (uiState.isSpeaking) "⏹️" else "🔊", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = if (uiState.isSpeaking) "Stop" else "Listen",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (uiState.isSpeaking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                startIndex = matchEnd
             }
         }
     }
@@ -366,8 +621,52 @@ fun BibleScreen(
     val uiState by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var showSearchField by remember { mutableStateOf(false) }
+
+    val isBackEnabled = drawerState.isOpen ||
+            showSearchField ||
+            uiState.verseActionDialogRef != null ||
+            uiState.bookmarkDialogVerseRef != null ||
+            uiState.editingBookmark != null ||
+            uiState.isSettingsDialogOpen ||
+            uiState.selectedDrawerTab != "reader" ||
+            uiState.selectedBook != null
+
+    BackHandler(enabled = isBackEnabled) {
+        when {
+            drawerState.isOpen -> {
+                coroutineScope.launch { drawerState.close() }
+            }
+            showSearchField -> {
+                showSearchField = false
+                viewModel.updateSearchQuery("")
+            }
+            uiState.verseActionDialogRef != null -> {
+                viewModel.closeVerseActionDialog()
+            }
+            uiState.bookmarkDialogVerseRef != null -> {
+                viewModel.closeBookmarkDialog()
+            }
+            uiState.editingBookmark != null -> {
+                viewModel.closeEditingBookmarkDialog()
+            }
+            uiState.isSettingsDialogOpen -> {
+                viewModel.closeSettingsDialog()
+            }
+            uiState.selectedDrawerTab != "reader" -> {
+                viewModel.selectDrawerTab("reader")
+            }
+            uiState.selectedChapter != null -> {
+                viewModel.goBackToChapters()
+            }
+            uiState.selectedBook != null -> {
+                viewModel.goBackToBooks()
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -405,6 +704,21 @@ fun BibleScreen(
                             }
 
                             HorizontalDivider()
+
+                            NavigationDrawerItem(
+                                label = {
+                                    Text(
+                                        text = if (uiState.isAdFree) "✨ NO ADS (Active)" else "🚀 NO ADS",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (uiState.isAdFree) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                selected = uiState.selectedDrawerTab == "no_ads",
+                                onClick = {
+                                    viewModel.selectDrawerTab("no_ads")
+                                    coroutineScope.launch { drawerState.close() }
+                                }
+                            )
 
                             NavigationDrawerItem(
                                 label = { Text("📖 Bible Reader", fontWeight = FontWeight.SemiBold) },
@@ -528,6 +842,12 @@ fun BibleScreen(
                             onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                         )
                     }
+                    "no_ads" -> {
+                        NoAdsScreen(
+                            viewModel = viewModel,
+                            onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                        )
+                    }
                     "settings" -> {
                         SettingsScreen(
                             viewModel = viewModel,
@@ -540,7 +860,12 @@ fun BibleScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .statusBarsPadding()
-                                .padding(16.dp),
+                                .padding(
+                                    start = 16.dp,
+                                    top = 16.dp,
+                                    bottom = 16.dp,
+                                    end = if (isLandscape && uiState.selectedVerseNums.isNotEmpty() && uiState.selectedDrawerTab == "reader") 150.dp else 16.dp
+                                ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             // 1. Top Book Header Controls: Fixed Right Action Controls (AA & 🔍)
@@ -723,7 +1048,11 @@ fun BibleScreen(
                                                         Text(if (isBookmarked) "🔖" else "📑")
                                                     }
                                                 }
-                                                Text(text = verse.text, style = MaterialTheme.typography.bodyMedium, fontFamily = uiState.selectedFontOption.toFontFamily())
+                                                Text(
+                                                    text = highlightSearchQuery(text = verse.text, query = uiState.searchQuery),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontFamily = uiState.selectedFontOption.toFontFamily()
+                                                )
                                             }
                                         }
                                     }
@@ -943,6 +1272,9 @@ fun BibleScreen(
 
                                         LazyColumn(
                                             state = pageListState,
+                                            contentPadding = PaddingValues(
+                                                bottom = if (uiState.selectedVerseNums.isNotEmpty() && !isLandscape) 280.dp else 40.dp
+                                            ),
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .graphicsLayer {
@@ -1032,17 +1364,26 @@ fun BibleScreen(
 
                                                 val hasHighlight = highlightColor != Color.Transparent
 
+                                                val surfaceColor = when {
+                                                    isSelected && hasHighlight -> highlightColor.copy(alpha = 0.8f)
+                                                    isSelected -> MaterialTheme.colorScheme.primaryContainer
+                                                    hasHighlight -> highlightColor
+                                                    else -> Color.Transparent
+                                                }
+
                                                 Surface(
                                                     shape = RoundedCornerShape(8.dp),
-                                                    color = if (isSelected)
-                                                        MaterialTheme.colorScheme.primaryContainer
-                                                    else if (hasHighlight)
-                                                        highlightColor
-                                                    else
-                                                        Color.Transparent,
+                                                    color = surfaceColor,
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(vertical = 2.dp)
+                                                        .then(
+                                                            if (isSelected && hasHighlight) {
+                                                                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                                                            } else {
+                                                                Modifier
+                                                            }
+                                                        )
                                                         .pointerInput(verse.verse) {
                                                             detectTapGestures(
                                                                 onTap = { viewModel.toggleVerseSelection(verse.verse) },
@@ -1074,56 +1415,119 @@ fun BibleScreen(
                                                     )
                                                 }
                                             }
+
+                                            if (uiState.selectedVerseNums.isNotEmpty() && !isLandscape) {
+                                                item {
+                                                    Spacer(modifier = Modifier.height(280.dp))
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Floating Bottom Container (Google Photos Style Floating Bar + Page Navigation Arrows)
+                        // Floating Bottom/Side Container (Google Photos Style Floating Bar + Page Navigation Arrows)
                         if (uiState.selectedDrawerTab == "reader" && uiState.selectedBook != null && uiState.selectedChapter != null && !uiState.isPickingVerse) {
-                            Column(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                AnimatedVisibility(
-                                    visible = uiState.selectedVerseNums.isNotEmpty(),
-                                    enter = slideInVertically { it / 2 } + fadeIn(),
-                                    exit = slideOutVertically { it / 2 } + fadeOut()
+                            if (isLandscape) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .statusBarsPadding()
+                                        .padding(16.dp)
                                 ) {
-                                    FloatingSelectionBar(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    FloatingActionButton(
-                                        onClick = { viewModel.previousChapter() },
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        shape = CircleShape,
-                                        modifier = Modifier.size(52.dp)
+                                    androidx.compose.animation.AnimatedVisibility(
+                                        visible = uiState.selectedVerseNums.isNotEmpty(),
+                                        enter = slideInHorizontally { it } + fadeIn(),
+                                        exit = slideOutHorizontally { it } + fadeOut(),
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .padding(vertical = 8.dp)
                                     ) {
-                                        Text("‹", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        FloatingSelectionBar(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            isLandscape = true
+                                        )
                                     }
 
-                                    FloatingActionButton(
-                                        onClick = { viewModel.nextChapter() },
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        shape = CircleShape,
-                                        modifier = Modifier.size(52.dp)
+                                    Row(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomStart)
+                                            .fillMaxWidth(if (uiState.selectedVerseNums.isNotEmpty()) 0.75f else 1f),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("›", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        FloatingActionButton(
+                                            onClick = { viewModel.previousChapter() },
+                                            containerColor = Color.Transparent,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Text("‹", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        FloatingActionButton(
+                                            onClick = { viewModel.nextChapter() },
+                                            containerColor = Color.Transparent,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Text("›", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            } else {
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    AnimatedVisibility(
+                                        visible = uiState.selectedVerseNums.isNotEmpty(),
+                                        enter = slideInVertically { it / 2 } + fadeIn(),
+                                        exit = slideOutVertically { it / 2 } + fadeOut()
+                                    ) {
+                                        FloatingSelectionBar(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            isLandscape = false
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        FloatingActionButton(
+                                            onClick = { viewModel.previousChapter() },
+                                            containerColor = Color.Transparent,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(52.dp)
+                                        ) {
+                                            Text("‹", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        FloatingActionButton(
+                                            onClick = { viewModel.nextChapter() },
+                                            containerColor = Color.Transparent,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(52.dp)
+                                ) {
+                                            Text("›", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -1131,7 +1535,9 @@ fun BibleScreen(
                     }
                 }
                 }
-                AdBanner()
+                if (!uiState.isAdFree) {
+                    AdBanner()
+                }
             }
         }
 
@@ -1286,9 +1692,12 @@ fun BibleScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
+                    .heightIn(max = 520.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
@@ -1467,9 +1876,12 @@ fun BibleScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
+                    .heightIn(max = 400.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(

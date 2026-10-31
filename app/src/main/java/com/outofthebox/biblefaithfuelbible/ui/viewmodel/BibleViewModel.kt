@@ -1,5 +1,6 @@
 package com.outofthebox.biblefaithfuelbible.ui.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
@@ -7,6 +8,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.outofthebox.biblefaithfuelbible.data.billing.BillingManager
 import com.outofthebox.biblefaithfuelbible.data.local.BibleDatabaseHelper
 import com.outofthebox.biblefaithfuelbible.data.local.BookRecord
 import com.outofthebox.biblefaithfuelbible.data.local.BookmarkRecord
@@ -76,7 +78,11 @@ data class BibleUiState(
     val highlights: List<HighlightRecord> = emptyList(),
     val bookmarkVerses: Map<String, List<VerseRecord>> = emptyMap(),
     val highlightVerses: Map<String, List<VerseRecord>> = emptyMap(),
-    val widgetState: WidgetState = WidgetState()
+    val widgetState: WidgetState = WidgetState(),
+    val isAdFree: Boolean = false,
+    val adFreePrice: String? = null,
+    val billingStatusMessage: String? = null,
+    val isBillingLoading: Boolean = false
 )
 
 class BibleViewModel(application: Application) : AndroidViewModel(application) {
@@ -88,6 +94,7 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
     private val dbHelper by lazy { BibleDatabaseHelper(application) }
     private val repository by lazy { BibleRepository(dbHelper = dbHelper) }
     private val sp = application.getSharedPreferences("theme_prefs", Context.MODE_PRIVATE)
+    private val billingManager by lazy { BillingManager(application) }
 
     private val _uiState = MutableStateFlow(BibleUiState())
     val uiState: StateFlow<BibleUiState> = _uiState.asStateFlow()
@@ -96,6 +103,27 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadSavedThemeAccent()
+        billingManager.initialize()
+        viewModelScope.launch {
+            billingManager.isAdFree.collect { adFree ->
+                _uiState.update { it.copy(isAdFree = adFree) }
+            }
+        }
+        viewModelScope.launch {
+            billingManager.adFreePrice.collect { price ->
+                _uiState.update { it.copy(adFreePrice = price) }
+            }
+        }
+        viewModelScope.launch {
+            billingManager.billingStatusMessage.collect { msg ->
+                _uiState.update { it.copy(billingStatusMessage = msg) }
+            }
+        }
+        viewModelScope.launch {
+            billingManager.isLoading.collect { loading ->
+                _uiState.update { it.copy(isBillingLoading = loading) }
+            }
+        }
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 dbHelper.setTranslation(_uiState.value.selectedTranslation)
@@ -514,6 +542,22 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun toggleSelectAllVerses() {
+        val allNums = _uiState.value.chapterVerses.map { it.verse }.toSet()
+        val isAllSelected = allNums.isNotEmpty() && _uiState.value.selectedVerseNums.containsAll(allNums)
+        if (isAllSelected) {
+            clearVerseSelection()
+        } else {
+            _uiState.update {
+                it.copy(
+                    selectedVerseNums = allNums,
+                    selectedVerseNum = allNums.minOrNull(),
+                    shouldScrollToVerse = false
+                )
+            }
+        }
+    }
+
     fun selectVerseNumber(verseNum: Int?) {
         if (verseNum == null) {
             clearVerseSelection()
@@ -522,10 +566,8 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun getSelectedVersesReference(): String {
+    private fun getSelectedVersesReferenceRangesString(): String {
         val state = _uiState.value
-        val bookName = state.selectedBook?.name ?: ""
-        val chapter = state.selectedChapter ?: 1
         val selectedNums = state.selectedVerseNums.sorted()
         if (selectedNums.isEmpty()) return ""
 
@@ -553,7 +595,15 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
             ranges.add("$start-$prev")
         }
 
-        val verseRangesStr = ranges.joinToString(", ")
+        return ranges.joinToString(", ")
+    }
+
+    fun getSelectedVersesReference(): String {
+        val state = _uiState.value
+        val bookName = state.selectedBook?.name ?: ""
+        val chapter = state.selectedChapter ?: 1
+        val verseRangesStr = getSelectedVersesReferenceRangesString()
+        if (verseRangesStr.isEmpty()) return ""
         return "$bookName $chapter:$verseRangesStr"
     }
 
@@ -925,14 +975,23 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
 
         val speakAction = {
             applyTtsVoiceGender(_uiState.value.ttsVoiceGender)
-            val reference = getSelectedVersesReference()
             val maxLength = TextToSpeech.getMaxSpeechInputLength().coerceAtMost(3900)
 
-            // Speak reference first
+            // Speak reference first in TTS-friendly format (avoiding "minus" pronounciation of hyphens)
+            val bookName = _uiState.value.selectedBook?.name ?: ""
+            val chapter = _uiState.value.selectedChapter ?: 1
+            val verseRangesStr = getSelectedVersesReferenceRangesString()
+            val ttsVerseRangesStr = verseRangesStr.replace("-", " through ")
+            val ttsReference = if (verseRangesStr.contains("-") || verseRangesStr.contains(",")) {
+                "$bookName chapter $chapter, verses $ttsVerseRangesStr"
+            } else {
+                "$bookName chapter $chapter, verse $ttsVerseRangesStr"
+            }
+
             val params = Bundle().apply {
                 putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "tts_utterance_id_ref")
             }
-            tts?.speak("$reference.", TextToSpeech.QUEUE_FLUSH, params, "tts_utterance_id_ref")
+            tts?.speak("$ttsReference.", TextToSpeech.QUEUE_FLUSH, params, "tts_utterance_id_ref")
 
             // Chunk and queue verses
             var currentChunk = StringBuilder()
@@ -1003,8 +1062,25 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun purchaseNoAds(activity: Activity) {
+        billingManager.launchPurchaseFlow(activity)
+    }
+
+    fun restorePurchases() {
+        billingManager.restorePurchases()
+    }
+
+    fun clearBillingMessage() {
+        billingManager.clearStatusMessage()
+    }
+
+    fun setAdFreeStatusForTesting(adFree: Boolean) {
+        billingManager.setAdFreeStatus(adFree)
+    }
+
     override fun onCleared() {
         super.onCleared()
+        billingManager.destroy()
         tts?.stop()
         tts?.shutdown()
     }

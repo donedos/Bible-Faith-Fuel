@@ -410,6 +410,49 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // Card 5: Ad-Free Status & Upgrade
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = if (uiState.isAdFree) "✨ Ad-Free Premium" else "🚀 Remove Ads",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = if (uiState.isAdFree) "Ads Removed (Active)" else "Non-Consumable One-Time Purchase",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = if (uiState.isAdFree) "Thank you for your support!" else "Pay once, remove ads forever across all screens.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Button(
+                            onClick = { viewModel.selectDrawerTab("no_ads") }
+                        ) {
+                            Text(if (uiState.isAdFree) "View Status" else "NO ADS")
+                        }
+                    }
+                }
+            }
         }
     }
 }
