@@ -6,29 +6,25 @@ A modern, 100% offline Android Holy Bible application built with Jetpack Compose
 
 ## ✨ Features
 
-- **📖 100% Offline Reading**: Read the Holy Bible anywhere without needing an internet connection.
-- **📚 Multiple Translations**: Pre-packaged with the **Berean Standard Bible (BSB)** as default and the **American Standard Version (ASV)**. Easily switch between translations at any time.
+- **📖 100% Offline Reading & Multi-Translation**: Read the Holy Bible anywhere offline. Pre-packaged with **Berean Standard Bible (BSB)**, **American Standard Version (ASV)**, and **King James Version (KJV)** with instant translation switching.
+- **🔍 Enhanced Search & Smart Suggestions**: Lightning-fast offline verse search with debouncing, in-memory caching, lookup indexes ($O(\log N)$ performance), and instant topic/book suggestions.
 - **📜 Continuous Book Reader**:
   - Smooth book-style continuous paragraph flow.
-  - Elegant superscript verse numbers.
-  - Floating chapter-turning navigation buttons (`‹` / `›`) and horizontal swipe gestures.
+  - Floating chapter-turning navigation buttons and page-turn animations.
   - Quick font size adjustment (`AA`).
 - **🎯 Precise Navigation (`Book > Chapter > verses`)**:
-  - Structured 3-step navigation flow.
-  - Direct exact-verse picker grid (4-column layout) to jump straight to any specific verse.
-- **🎨 Verse Highlighter**:
-  - Highlight verses in 6 soft pastel colors (Yellow, Green, Blue, Pink, Purple, Orange).
-  - High-contrast text readability on any highlight background.
-- **🔖 Saved Bookmarks & Notes**:
-  - Dedicated standalone screens for managing Bookmarks and Personal Notes.
-  - Create new bookmark folders or append verses to existing bookmarks.
-  - Edit or delete notes and bookmarks.
-  - Tap any saved bookmark or note to jump directly to that exact verse in the Bible Reader.
-- **💾 Permanent Data Persistence**:
-  - User bookmarks, notes, and highlights are stored in a dedicated local database (`bible_faith_fuel.db`) that is never overwritten, ensuring your personal study data is 100% safe across app restarts and translation switches.
+  - Structured 3-step navigation flow and exact-verse picker grid.
+- **🗣️ Native Offline Text-to-Speech (TTS)**:
+  - Zero-cost, lightning-fast offline audio playback for selected verses with chapter chunking support.
+- **📱 Home Screen Verse Widgets**:
+  - Customizable Verse of the Day widgets with multiple background themes (Warm Parchment, Dark Glass, Sunset, Ocean, etc.), text alignment, and refresh intervals (1–24 hours).
+- **🎨 Typography & Custom Fonts**:
+  - Choose between Inter, Libre Baskerville, Lora, EB Garamond, Gentium Book Plus, and Roboto Flex.
+- **🎨 Verse Highlighter & Bookmarks/Notes**:
+  - Highlight verses in soft pastel colors.
+  - Standalone Bookmarks and Notes screens with timestamp tracking, sorting (Newest/Oldest), multi-item batch deletion, and individual verse-level removal inside bookmarks.
 - **🌓 Dark Mode & Custom Accents**:
-  - Seamless light and dark theme toggle.
-  - iOS-inspired color accent options.
+  - Seamless light/dark theme toggle and iOS-inspired color accent options.
 
 ---
 
@@ -37,7 +33,8 @@ A modern, 100% offline Android Holy Bible application built with Jetpack Compose
 - **Language**: Kotlin
 - **UI Toolkit**: Jetpack Compose & Material 3
 - **Architecture**: MVVM (Model-View-ViewModel) with Kotlin Coroutines and StateFlow
-- **Database**: SQLite (Pre-packaged asset databases + local user storage with `ATTACH DATABASE`)
+- **Database**: SQLite (Pre-packaged asset databases + local user storage with `ATTACH DATABASE` and optimized lookup indexes)
+- **Text-to-Speech**: Native Android `TextToSpeech`
 - **Build System**: Gradle with Android Gradle Plugin (AGP)
 
 ---
@@ -46,7 +43,7 @@ A modern, 100% offline Android Holy Bible application built with Jetpack Compose
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/bible-faith-fuel.git
+   git clone https://github.com/donedos/Bible-Faith-Fuel.git
    ```
    
 2. Open the project in **Android Studio**.
